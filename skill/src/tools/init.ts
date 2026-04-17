@@ -1,26 +1,12 @@
 // Tool: wuxia_init
-// Looks up the OnchainOS-managed wallet for the user, checks genesis mint
-// status, and prints a status card.
+// Main game entry point. Works in both mock and on-chain mode.
+// Shows welcome screen + character status + game menu.
 
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { guard } from "./_util.js";
-import { createWalletAccount, getWalletAccount } from "../onchainos/wallet.js";
-import { fetchHasMintedGenesis, fetchOwnedHeroIds } from "../chain/reads.js";
-import { setCurrentPlayer } from "../state/cache.js";
-import { renderStatusCard } from "../render/statusCard.js";
-
-/**
- * Derive a stable accountId for the current MCP session. OnchainOS
- * `createWalletAccount` is idempotent when the same accountId is reused, so we
- * key off an env-configurable nickname (falling back to a hash of the process
- * PID + hostname so dev sessions don't clash with each other).
- */
-function sessionAccountId(): string {
-  if (process.env.WUXIA_PLAYER_ID) return process.env.WUXIA_PLAYER_ID;
-  const seed = `${process.pid}:${process.env.HOSTNAME ?? "local"}`;
-  return `wuxia-${createHash("sha256").update(seed).digest("hex").slice(0, 16)}`;
-}
+import { setCurrentPlayer, getHeroCache, cacheHeroes } from "../state/cache.js";
+import { renderWelcome, renderMainMenu, type GameMenuState } from "../render/gameMenu.js";
 
 export const inputSchema = z.object({}).strict();
 export type Input = z.infer<typeof inputSchema>;
@@ -28,7 +14,7 @@ export type Input = z.infer<typeof inputSchema>;
 export const toolDef = {
   name: "wuxia_init",
   description:
-    "初始化江湖之旅:查询 OnchainOS 托管钱包、判断 genesis 侠客是否已 mint,并输出状态卡。",
+    "进入江湖大乱斗。展示欢迎画面和游戏主菜单。首次进入引导创建角色。无需任何配置即可运行。",
   inputSchema: {
     type: "object",
     properties: {},
@@ -36,28 +22,54 @@ export const toolDef = {
   },
 } as const;
 
+function isMockMode(): boolean {
+  return !process.env.WUXIA_ARENA_ADDRESS || !process.env.WUXIA_HERO_ADDRESS;
+}
+
 export async function handler(raw: unknown) {
   return guard(async () => {
     inputSchema.parse(raw ?? {});
-    const accountId = sessionAccountId();
+    const mock = isMockMode();
 
-    // OnchainOS createWalletAccount is idempotent for a reused accountId, but
-    // we still try the GET first to avoid an unnecessary POST in the common
-    // (returning player) case.
-    const existing = await getWalletAccount(accountId).catch(() => null);
-    const account = existing ?? (await createWalletAccount({ accountId }));
-    setCurrentPlayer(account.address);
+    let address: `0x${string}`;
+    let heroes = [...getHeroCache().values()];
 
-    const [hasMinted, ownedIds] = await Promise.all([
-      fetchHasMintedGenesis(account.address),
-      fetchOwnedHeroIds(account.address),
-    ]);
+    if (mock) {
+      // Mock mode: use a fake address, heroes from cache
+      address = "0x000000000000000000000000000000000000A001";
+      setCurrentPlayer(address);
+    } else {
+      // On-chain mode: create/fetch OnchainOS wallet
+      const { createWalletAccount, getWalletAccount } = await import("../onchainos/wallet.js");
+      const { fetchHasMintedGenesis, fetchOwnedHeroIds, fetchHeroes } = await import("../chain/reads.js");
 
-    return renderStatusCard({
-      address: account.address,
-      hasMintedGenesis: hasMinted,
-      heroCount: ownedIds.length,
-      chain: "base-sepolia",
-    });
+      const accountId = sessionAccountId();
+      const existing = await getWalletAccount(accountId).catch(() => null);
+      const account = existing ?? (await createWalletAccount({ accountId }));
+      address = account.address as `0x${string}`;
+      setCurrentPlayer(address);
+
+      const ownedIds = await fetchOwnedHeroIds(address);
+      if (ownedIds.length > 0) {
+        const fetched = await fetchHeroes(ownedIds);
+        cacheHeroes(fetched);
+        heroes = fetched;
+      }
+    }
+
+    const menuState: GameMenuState = {
+      address,
+      heroes,
+      hasDefenseTeam: false, // simplified for mock
+      mode: mock ? "mock" : "onchain",
+    };
+
+    return renderWelcome() + "\n" + renderMainMenu(menuState);
   });
+}
+
+function sessionAccountId(): string {
+  if (process.env.WUXIA_PLAYER_ID) return process.env.WUXIA_PLAYER_ID;
+  const seed = `${process.pid}:${process.env.HOSTNAME ?? "local"}`;
+  return `wuxia-${createHash("sha256").update(seed).digest("hex").slice(0, 16)}`;
 }

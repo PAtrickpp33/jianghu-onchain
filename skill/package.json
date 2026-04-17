@@ -1,21 +1,44 @@
 {
   "name": "wuxia-skill",
-  "version": "0.1.0",
-  "description": "Jianghu Wuxia on-chain battle game as an MCP skill. Play in Claude Code, Cursor, Codex, OpenCode.",
+  "version": "0.2.0",
+  "description": "Jianghu Wuxia on-chain 3v3 battle game as a Claude Code / Cursor / Codex skill. Mint heroes, clear PvE chapters, run AI-vs-AI arena matches — from inside your terminal agent.",
   "type": "module",
   "bin": {
-    "wuxia-skill": "dist/index.js"
+    "wuxia-skill": "dist/cli.js"
   },
-  "main": "dist/index.js",
+  "main": "dist/cli.js",
+  "files": [
+    "dist/**/*.js",
+    "!dist/**/*.test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "keywords": ["mcp", "onchain-game", "wuxia", "okx", "onchainos"],
+  "keywords": [
+    "claude-code",
+    "skill",
+    "cursor",
+    "codex",
+    "onchain-game",
+    "wuxia",
+    "okx",
+    "onchainos",
+    "base-sepolia"
+  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PAtrickpp33/jianghu"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@anthropic-ai/sdk": "^0.30.0",

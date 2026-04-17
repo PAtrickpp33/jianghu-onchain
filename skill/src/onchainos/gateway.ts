@@ -29,6 +29,12 @@ export interface SignAndSendInput {
    * HeroNFT / Arena methods).
    */
   paymasterPolicyId?: string;
+  /**
+   * When true, the call explicitly skips paymaster sponsorship — the player
+   * wallet pays gas (and `value`) directly. Used for paid-mint flows where
+   * the user is already consenting to an ETH spend, per docs/GACHA_PRD_TECH.md §2.5.
+   */
+  bypassPaymaster?: boolean;
   /** Gas ceiling in gas units. Defaults to 3_000_000 — plenty for a 3v3 battle. */
   gasLimit?: number;
 }
@@ -56,7 +62,8 @@ export async function signAndSend(input: SignAndSendInput): Promise<SignAndSendR
     data: input.data,
     value: input.value ?? "0",
     gasLimit: input.gasLimit ? String(input.gasLimit) : undefined,
-    paymasterPolicyId: input.paymasterPolicyId,
+    // bypassPaymaster=true overrides any policy id so the player pays gas.
+    paymasterPolicyId: input.bypassPaymaster ? undefined : input.paymasterPolicyId,
   };
 
   let raw: RawSignAndSend;

@@ -69,10 +69,15 @@ export async function runAiVsAi(input: SimpleRunInput): Promise<string> {
   const caster: Caster | undefined =
     input.withCaster && process.env.ANTHROPIC_API_KEY ? createCaster() : undefined;
 
+  // Generate random teams each run for variety
+  const seed = Date.now();
+  const teamA = useChain ? [] : generateRandomTeam(seed, "A");
+  const teamB = useChain ? [] : generateRandomTeam(seed + 7, "B");
+
   const deps: AiVsAiDeps = {
     loadTeam: useChain
       ? loadTeamFromChain
-      : async (addr) => (addr === demoA ? MOCK_TEAM_A : MOCK_TEAM_B),
+      : async (addr) => (addr === demoA ? teamA : teamB),
     simulateRound: simulateRoundOffChain,
     skillMeta: SKILL_META,
     // submitOnchain intentionally omitted — demo stays off-chain for pacing.
@@ -134,24 +139,89 @@ function labelFor(id: AgentId): string {
 }
 
 /**
- * A deterministic mock agent for offline demos: picks the first alive actor
- * with an available skill and the first alive enemy. Good enough to exercise
- * the full pipeline without burning LLM tokens.
+ * Smart mock agent with basic heuristics. No LLM needed but plays reasonably:
+ * - Heals when any ally HP < 40%
+ * - Uses control on highest ATK enemy
+ * - Focuses lowest HP enemy for damage
+ * - Uses AoE when 2+ enemies alive
+ * - Rotates actors and adds trash talk variety
  */
 function mockAgent(id: AgentId): DecisionAgent {
+  let turnCounter = 0;
+  const trashTalks = [
+    "看招!", "受死!", "这一剑,送你上西天!", "休想逃!",
+    "纳命来!", "你已落入我的计中!", "哼,不过如此。", "江湖再见!",
+    "你的武功,不值一提。", "接我一招试试!",
+  ];
+
   return {
-    persona: "raven" as DecisionPersona,
+    persona: (id === "shaolin" || id === "emei" ? "phoenix" : "raven") as DecisionPersona,
     async decide(input) {
-      const actorIdx = input.mySide.findIndex((h) => h.alive);
-      const actor = input.mySide[actorIdx];
-      const skillId = actor?.hero.skillIds[0] ?? 0;
-      const targetIdx = input.enemySide.findIndex((h) => h.alive);
+      turnCounter++;
+      const myAlive = input.mySide.map((h, i) => ({ h, i })).filter(x => x.h.alive);
+      const enemyAlive = input.enemySide.map((h, i) => ({ h, i })).filter(x => x.h.alive);
+
+      if (myAlive.length === 0 || enemyAlive.length === 0) {
+        return { actorIdx: 0, skillId: 0, targetIdx: 0, trashTalk: "..." };
+      }
+
+      // Pick actor: rotate through alive heroes
+      const actorEntry = myAlive[turnCounter % myAlive.length];
+      const actor = actorEntry.h;
+      const actorIdx = actorEntry.i;
+      const skills = actor.hero.skillIds;
+
+      // Check if any ally needs healing (HP < 40%)
+      const woundedAlly = myAlive.find(x => x.h.currentHp < x.h.hero.hp * 0.4);
+      const healSkill = skills.find(s => SKILL_META[s]?.kind === SkillKind.Heal);
+      if (woundedAlly && healSkill !== undefined) {
+        return {
+          actorIdx,
+          skillId: healSkill,
+          targetIdx: woundedAlly.i,
+          trashTalk: "先疗伤,再战不迟!",
+        };
+      }
+
+      // Use control on highest ATK enemy (if we have control skill)
+      const controlSkill = skills.find(s => SKILL_META[s]?.kind === SkillKind.Control);
+      const highAtkEnemy = [...enemyAlive].sort((a, b) => b.h.hero.atk - a.h.hero.atk)[0];
+      if (controlSkill !== undefined && enemyAlive.length >= 2 && turnCounter % 3 === 0) {
+        return {
+          actorIdx,
+          skillId: controlSkill,
+          targetIdx: highAtkEnemy.i,
+          trashTalk: "定!",
+        };
+      }
+
+      // Use AoE when 2+ enemies alive
+      const aoeSkill = skills.find(s => {
+        const eff = SKILL_EFFECT[s];
+        return eff && eff.kind === SkillKind.Damage && eff.aoe;
+      });
+      if (aoeSkill !== undefined && enemyAlive.length >= 2) {
+        return {
+          actorIdx,
+          skillId: aoeSkill,
+          targetIdx: enemyAlive[0].i,
+          trashTalk: trashTalks[turnCounter % trashTalks.length],
+        };
+      }
+
+      // Focus lowest HP enemy with best damage skill
+      const lowestHpEnemy = [...enemyAlive].sort((a, b) => a.h.currentHp - b.h.currentHp)[0];
+      const dmgSkill = skills.find(s => {
+        const eff = SKILL_EFFECT[s];
+        return eff && (eff.kind === SkillKind.Damage || eff.kind === SkillKind.Dot);
+      }) ?? skills[0];
+
       return {
         actorIdx,
-        skillId,
-        targetIdx,
-        trashTalk: "看招!",
-      } satisfies AgentDecisionOutput;
+        skillId: dmgSkill,
+        targetIdx: lowestHpEnemy.i,
+        trashTalk: trashTalks[turnCounter % trashTalks.length],
+      };
     },
   };
 }
@@ -484,14 +554,64 @@ function clamp(n: number, lo: number, hi: number): number {
 const DEMO_DEFAULT_A = "0x000000000000000000000000000000000000A001";
 const DEMO_DEFAULT_B = "0x000000000000000000000000000000000000B002";
 
-const MOCK_TEAM_A: Hero[] = [
-  { tokenId: 1n, sect: Sect.Tangmen, name: "飞燕", hp: 100, atk: 95, def: 50, spd: 90, crit: 1500, skillIds: [3, 4, 5] },
-  { tokenId: 2n, sect: Sect.Tangmen, name: "无名", hp: 110, atk: 90, def: 55, spd: 85, crit: 1800, skillIds: [3, 5, 4] },
-  { tokenId: 3n, sect: Sect.Shaolin, name: "圆智", hp: 180, atk: 70, def: 95, spd: 55, crit: 500,  skillIds: [0, 1, 2] },
+// ── Random team generation ──────────────────────────────────────────────────
+
+const HERO_POOL: Array<Omit<Hero, "tokenId">> = [
+  // Shaolin
+  { sect: Sect.Shaolin, name: "圆智", hp: 180, atk: 70, def: 95, spd: 55, crit: 500,  skillIds: [0, 1, 2] },
+  { sect: Sect.Shaolin, name: "玄苦", hp: 200, atk: 75, def: 100, spd: 50, crit: 400, skillIds: [0, 1, 2] },
+  { sect: Sect.Shaolin, name: "空见", hp: 190, atk: 65, def: 105, spd: 45, crit: 300, skillIds: [1, 0, 2] },
+  { sect: Sect.Shaolin, name: "渡劫", hp: 170, atk: 80, def: 90, spd: 60, crit: 600,  skillIds: [2, 0, 1] },
+  // Tangmen
+  { sect: Sect.Tangmen, name: "飞燕", hp: 100, atk: 95, def: 50, spd: 90, crit: 1500, skillIds: [3, 4, 5] },
+  { sect: Sect.Tangmen, name: "无名", hp: 110, atk: 90, def: 55, spd: 85, crit: 1800, skillIds: [3, 5, 4] },
+  { sect: Sect.Tangmen, name: "夜鸮", hp: 95,  atk: 100, def: 45, spd: 95, crit: 2000, skillIds: [4, 3, 5] },
+  { sect: Sect.Tangmen, name: "柳如烟", hp: 105, atk: 88, def: 52, spd: 88, crit: 1600, skillIds: [5, 3, 4] },
+  // Emei
+  { sect: Sect.Emei, name: "静因", hp: 130, atk: 65, def: 70, spd: 80, crit: 800,  skillIds: [6, 7, 8] },
+  { sect: Sect.Emei, name: "灭绝", hp: 120, atk: 80, def: 65, spd: 75, crit: 1200, skillIds: [8, 6, 7] },
+  { sect: Sect.Emei, name: "风陵", hp: 125, atk: 72, def: 68, spd: 82, crit: 1000, skillIds: [6, 8, 7] },
+  { sect: Sect.Emei, name: "周芷若", hp: 115, atk: 85, def: 60, spd: 78, crit: 1400, skillIds: [8, 7, 6] },
 ];
 
-const MOCK_TEAM_B: Hero[] = [
-  { tokenId: 4n, sect: Sect.Shaolin, name: "玄苦", hp: 200, atk: 75, def: 100, spd: 50, crit: 400,  skillIds: [0, 1, 2] },
-  { tokenId: 5n, sect: Sect.Emei,    name: "静因", hp: 130, atk: 65, def: 70,  spd: 80, crit: 800,  skillIds: [6, 7, 8] },
-  { tokenId: 6n, sect: Sect.Emei,    name: "灭绝", hp: 120, atk: 80, def: 65,  spd: 75, crit: 1200, skillIds: [8, 6, 7] },
-];
+/**
+ * Generate a random 3-hero team from the hero pool, seeded for reproducibility
+ * within a single run but different between runs.
+ */
+function generateRandomTeam(seed: number, side: "A" | "B"): Hero[] {
+  const rng = simpleRng(seed);
+  const shuffled = [...HERO_POOL].sort(() => rng() - 0.5);
+
+  // Pick 3 with at least 2 different sects for variety
+  const team: Array<Omit<Hero, "tokenId">> = [];
+  const usedSects = new Set<Sect>();
+  for (const hero of shuffled) {
+    if (team.length >= 3) break;
+    // Allow 2 of same sect max
+    if (team.length === 2 && usedSects.size === 1 && usedSects.has(hero.sect)) continue;
+    team.push(hero);
+    usedSects.add(hero.sect);
+  }
+
+  // Fill if we didn't get 3 (edge case)
+  while (team.length < 3) team.push(shuffled[team.length]);
+
+  const baseId = side === "A" ? 1 : 100;
+  return team.map((h, i) => ({
+    ...h,
+    tokenId: BigInt(baseId + i),
+    // Add slight stat variance ±5% for freshness
+    hp: h.hp + Math.floor((rng() - 0.5) * h.hp * 0.1),
+    atk: h.atk + Math.floor((rng() - 0.5) * h.atk * 0.1),
+    def: h.def + Math.floor((rng() - 0.5) * h.def * 0.1),
+    spd: h.spd + Math.floor((rng() - 0.5) * h.spd * 0.1),
+  }));
+}
+
+function simpleRng(seed: number): () => number {
+  let s = seed | 0 || 1;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return s / 2147483647;
+  };
+}

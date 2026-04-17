@@ -1,0 +1,24 @@
+src/
+tsconfig.json
+node_modules/
+*.test.ts
+*.test.js
+**/*.test.ts
+**/*.test.js
+vitest.config.*
+.vscode/
+.idea/
+.git/
+.gitignore
+mcp.json
+scripts/
+coverage/
+*.log
+.env
+.env.*
+*.tsbuildinfo
+
+# CLI is consumed via `wuxia-skill` binary, not imported — strip declarations + sourcemaps
+**/*.d.ts
+**/*.d.ts.map
+**/*.js.map

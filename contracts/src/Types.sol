@@ -80,6 +80,23 @@ library Types {
         uint8  flags;      // FLAG_* bitfield
     }
 
+    /// @notice Hero wound / cooldown record. Stored in HeroNFT per tokenId.
+    ///         `cooldownUntil` is a unix timestamp; hero is unavailable while
+    ///         `block.timestamp < cooldownUntil`.
+    struct HeroHealth {
+        uint8  woundLevel;      // 0 健康 / 1 轻伤 / 2 重伤
+        uint64 cooldownUntil;   // unix ts
+        uint8  potionCount;     // 金疮药库存 (v2)
+    }
+
+    /// @notice Player campaign progress. Stored in Arena per player.
+    /// @dev `bossDefeated` entries are packed: (bossId << 56) | timestamp.
+    struct StoryProgress {
+        uint8    currentChapter;
+        uint64[] bossDefeated;
+        uint256  totalExp;
+    }
+
     /// @notice Full battle report stored by Arena; replayable client-side.
     /// @dev Teams stored for replay so the skill doesn't need to re-query HeroNFT.
     struct BattleReport {

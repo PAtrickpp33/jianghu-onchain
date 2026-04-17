@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA}  from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {Types}         from "./Types.sol";
 import {BattleEngine}  from "./BattleEngine.sol";
@@ -14,7 +15,13 @@ import {HeroNFT}       from "./HeroNFT.sol";
 ///         persists the report (both as storage + event emission).
 /// @dev Per-player nonce is used for EIP-712 relays; regular calls do NOT
 ///      consume nonce to keep wallet UX simple.
-contract Arena is EIP712, ReentrancyGuard {
+///
+/// Deployment note:
+///   Constructor makes `msg.sender` the Ownable owner. After deploying Arena,
+///   remember to call `HeroNFT.setGameAuthority(arenaAddr)` from the HeroNFT
+///   owner so Arena can mutate wound / cooldown / skill state on battle
+///   settlement. Missing this step makes `completeStage` / wound writes revert.
+contract Arena is EIP712, ReentrancyGuard, Ownable {
     using BattleEngine for Types.Hero[3];
 
     // ---------------------------------------------------------------------
@@ -48,11 +55,20 @@ contract Arena is EIP712, ReentrancyGuard {
     /// @notice Monotonic counter used to derive battleId.
     uint256 public battleCounter;
 
+    /// @notice Story-mode progress keyed by player.
+    mapping(address => Types.StoryProgress) public playerProgress;
+
+    /// @notice Optional delegate allowed to call `completeStage` alongside the owner
+    ///         (e.g. a server-side settlement oracle). Zero means owner-only.
+    address public gameAuthority;
+
     // ---------------------------------------------------------------------
     // Events
     // ---------------------------------------------------------------------
 
     event DefenseTeamSet(address indexed player, uint256[3] heroIds);
+    event ChapterProgress(address indexed player, uint8 chapter, uint64 bossId);
+    event GameAuthoritySet(address indexed authority);
 
     event BattleSettled(
         bytes32 indexed battleId,
@@ -75,8 +91,28 @@ contract Arena is EIP712, ReentrancyGuard {
 
     constructor(HeroNFT heroNft_)
         EIP712("JianghuArena", "1")
+        Ownable(msg.sender)
     {
         heroNft = heroNft_;
+    }
+
+    // ---------------------------------------------------------------------
+    // Admin
+    // ---------------------------------------------------------------------
+
+    /// @notice Point at a non-owner address allowed to call `completeStage`.
+    ///         Paymaster-safe (no msg.value).
+    function setGameAuthority(address authority) external onlyOwner {
+        gameAuthority = authority;
+        emit GameAuthoritySet(authority);
+    }
+
+    modifier onlyGame() {
+        require(
+            msg.sender == owner() || (gameAuthority != address(0) && msg.sender == gameAuthority),
+            "Arena: not game authority"
+        );
+        _;
     }
 
     // ---------------------------------------------------------------------
@@ -294,6 +330,57 @@ contract Arena is EIP712, ReentrancyGuard {
                        + uint256(team[i].spd);
             }
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // Story progress
+    // ---------------------------------------------------------------------
+
+    /// @notice擂台 BOSS id 起点 — ids at/above this grant a first-clear mint.
+    /// @dev Must match `HeroNFT.BOSS_ARENA_THRESHOLD`.
+    uint8 public constant BOSS_ARENA_THRESHOLD = 5;
+
+    /// @notice First-clear ledger mirror. `true` once `grantBossMint` has fired
+    ///         for this (player, bossId) pair — prevents duplicate rewards even
+    ///         if an operator replays `completeStage`.
+    mapping(address => mapping(uint8 => bool)) public bossFirstCleared;
+
+    event BossFirstCleared(address indexed player, uint8 bossId);
+
+    /// @notice Record a stage clear for `player`. Owner / authority only.
+    /// @dev Packs bossId + block timestamp into a single uint64:
+    ///      (bossId << 56) | (timestamp & 0x00FFFFFFFFFFFFFF).
+    ///      Not payable — Paymaster-safe.
+    function completeStage(address player, uint8 bossId) external onlyGame {
+        require(player != address(0), "Arena: zero player");
+        Types.StoryProgress storage p = playerProgress[player];
+
+        uint64 ts = uint64(block.timestamp) & 0x00FFFFFFFFFFFFFF;
+        uint64 packed = (uint64(bossId) << 56) | ts;
+        p.bossDefeated.push(packed);
+
+        if (bossId > p.currentChapter) {
+            p.currentChapter = bossId;
+        }
+        p.totalExp += uint256(bossId) * 100;
+
+        emit ChapterProgress(player, p.currentChapter, uint64(bossId));
+
+        // Gacha economy: credit a free mint on first擂台 BOSS clear.
+        if (bossId >= BOSS_ARENA_THRESHOLD && !bossFirstCleared[player][bossId]) {
+            bossFirstCleared[player][bossId] = true;
+            emit BossFirstCleared(player, bossId);
+            heroNft.grantBossMint(player, bossId);
+        }
+    }
+
+    /// @notice Return the full story-progress record for a player.
+    function getStoryProgress(address player)
+        external
+        view
+        returns (Types.StoryProgress memory)
+    {
+        return playerProgress[player];
     }
 
     // ---------------------------------------------------------------------
