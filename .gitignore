@@ -35,8 +35,6 @@ tsconfig.tsbuildinfo
 contracts/out/
 contracts/cache/
 contracts/broadcast/
-contracts/lib/
-contracts/.gas-snapshot
 contracts/deployments/*.json
 !contracts/deployments/.gitkeep
 
