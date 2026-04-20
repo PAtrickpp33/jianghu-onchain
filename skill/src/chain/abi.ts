@@ -398,6 +398,23 @@ export const heroNftAbi = [
   },
   {
     type: "function",
+    name: "ownerOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "tokenId", type: "uint256", indexed: true },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "function",
     name: "hasMintedGenesis",
     stateMutability: "view",
     inputs: [{ name: "owner", type: "address" }],

@@ -864,16 +864,44 @@ async function mirrorPveOnchain(state: GameState, args: PveMirrorArgs): Promise<
   const { arena, hero } = getAddresses();
 
   if (args.winner === 0) {
-    const data = encodeFunctionData({
-      abi: arenaAbi,
-      functionName: "completeStage",
-      args: [player, args.bossId],
-    });
-    const line = await tryMirror(`completeStage(${args.stageTag})`, async () => {
-      const { txHash } = await signAndSend({ to: arena, data, from: player });
-      return txHash;
-    });
-    if (line) lines.push(line);
+    // `completeStage` is admin-only (`onlyGame`). The skill used to run the
+    // battle locally and then ask the game-authority oracle to mirror the
+    // clear on chain. That model doesn't work for sepolia-direct mode
+    // (player's key isn't the game authority), so we skip the mirror in
+    // that branch — Arena v3's `startPve` already advances storyProgress
+    // automatically when called by the player.
+    //
+    // For legacy OnchainOS mode, keep the old mirror path: the Paymaster-
+    // sponsored oracle is the authority.
+    if (getMode() === "onchain") {
+      const data = encodeFunctionData({
+        abi: arenaAbi,
+        functionName: "completeStage",
+        args: [player, args.bossId],
+      });
+      const line = await tryMirror(`completeStage(${args.stageTag})`, async () => {
+        const { txHash } = await signAndSend({ to: arena, data, from: player });
+        return txHash;
+      });
+      if (line) lines.push(line);
+    } else if (getMode() === "sepolia") {
+      // Real on-chain battle via player-signed startPve. The local-sim result
+      // was just for storytelling UX; this is the source of truth.
+      const stageNum = parseInt(args.stageTag.split("-").pop() ?? "1", 10) || 1;
+      const team = state.activeTeam.slice(0, 3) as [bigint, bigint, bigint];
+      if (team.length === 3 && team.every(x => x > 0n)) {
+        const data = encodeFunctionData({
+          abi: arenaAbi,
+          functionName: "startPve",
+          args: [team, stageNum],
+        });
+        const line = await tryMirror(`startPve(${args.stageTag}, on-chain)`, async () => {
+          const { txHash } = await signAndSend({ to: arena, data, from: player, gasLimit: 4_000_000 });
+          return txHash;
+        });
+        if (line) lines.push(line);
+      }
+    }
 
     if (args.winDrop) {
       const drop = args.winDrop;
@@ -932,6 +960,16 @@ async function ensurePlayerAddress(state: GameState): Promise<`0x${string}`> {
     saveState(state);
     return state.playerAddress;
   }
+
+  // In sepolia-direct mode, derive the address from the local private key
+  // — no OnchainOS MPC wallet involved.
+  if (getMode() === "sepolia") {
+    const { getPlayerAddress } = await import("./chain/directSigner.js");
+    state.playerAddress = getPlayerAddress();
+    saveState(state);
+    return state.playerAddress;
+  }
+
   const { createHash } = await import("node:crypto");
   const { createWalletAccount, getWalletAccount } = await import("./onchainos/wallet.js");
   const accountId = process.env.XIAKE_PLAYER_ID
@@ -1233,7 +1271,7 @@ async function cmdMint(
     lines.push(`合计: ${totalEth} ETH (${totalWei} wei)`);
     lines.push(`Paymaster: 绕过 (bypassPaymaster=true),玩家钱包直接支付 ETH + gas`);
 
-    if (mode === "onchain") {
+    if (mode === "onchain" || mode === "sepolia") {
       try {
         const player = await ensurePlayerAddress(state);
         const { getPublicClient } = await import("./chain/client.js");
@@ -1287,7 +1325,7 @@ async function cmdMint(
   const forcedSectFires: Array<{ atIndex: number; sect: number }> = [];
   let referralJustFired = false;
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     const player = await ensurePlayerAddress(state);
     const { encodeFunctionData } = await import("viem");
     const { heroNftAbi } = await import("./chain/abi.js");
@@ -1859,7 +1897,7 @@ async function cmdPve(stageIdStr: string): Promise<string> {
   for (const l of renderUnlockBanner(achUnlocked)) rewardLines.push(l);
   saveState(state);
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     const lossLevel: 1 | 2 = stage.isChapterBoss ? 2 : 1;
     const bossId = stage.chapter * 10 + stage.stageIdx;
     const chainLines = await mirrorPveOnchain(state, {
@@ -2083,7 +2121,7 @@ async function cmdSetDefense(args: string[]): Promise<string> {
     lines.push(`  ${icon} ${SECT_NAMES[h.sect]}·${h.name} #${h.tokenId}  HP${h.hp} ATK${h.atk} DEF${h.def} SPD${h.spd}`);
   }
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       const { encodeFunctionData } = await import("viem");
@@ -2121,7 +2159,7 @@ async function cmdListArena(args: string[]): Promise<string> {
   lines.push("| 排名 | 玩家地址                                       | 声望   | 阵容预览");
   lines.push("|------|------------------------------------------------|--------|---------");
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const { fetchArenaList, fetchDefenseTeam, fetchHeroes } = await import("./chain/reads.js");
       const { players, powers } = await fetchArenaList(0n, BigInt(limit));
@@ -2172,7 +2210,7 @@ async function cmdPvpChallenge(targetArg: string | undefined): Promise<string> {
   const fitErr = checkTeamFit(state, playerTeam);
   if (fitErr) return fitErr;
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       if (target.toLowerCase() === player.toLowerCase()) return "⚠️ 不能挑战自己。";
@@ -2521,7 +2559,7 @@ async function cmdHeal(tokenIdArg?: string): Promise<string> {
     return `🔒 金疮药不足 (库存 0 瓶)。闯关胜利 10% 掉落,章节 BOSS 必掉,擂台必掉 2 瓶。`;
   }
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     const player = await ensurePlayerAddress(state);
     const { encodeFunctionData } = await import("viem");
     const { heroNftAbi } = await import("./chain/abi.js");
@@ -2710,7 +2748,7 @@ async function cmdArena(bossSlug?: string): Promise<string> {
   const fitErr = checkTeamFit(state, playerTeam);
   if (fitErr) return fitErr;
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     return [
       `🔗 模式: onchain`,
       `🏯 名人擂台「${boss.title}」— onchain 分支尚未接入 (由 onchain-eng 负责)。`,
@@ -3083,7 +3121,7 @@ async function cmdExchange(args: string[]): Promise<string> {
   const lines: string[] = [];
   lines.push(`🔗 模式: ${mode}`);
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       const { encodeFunctionData } = await import("viem");
@@ -3163,7 +3201,7 @@ async function cmdRefer(args: string[]): Promise<string> {
     } else {
       lines.push("当前未绑定推荐人。");
     }
-    if (mode === "onchain") {
+    if (mode === "onchain" || mode === "sepolia") {
       try {
         const player = await ensurePlayerAddress(state);
         const { getPublicClient, getAddresses } = await import("./chain/client.js");
@@ -3202,7 +3240,7 @@ async function cmdRefer(args: string[]): Promise<string> {
   const lines: string[] = [];
   lines.push(`🔗 模式: ${mode}`);
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       const { encodeFunctionData } = await import("viem");
@@ -3260,7 +3298,7 @@ async function cmdPityBoost(stepsArg?: string): Promise<string> {
   const lines: string[] = [];
   lines.push(`🔗 模式: ${mode}`);
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       const { encodeFunctionData } = await import("viem");
@@ -3336,7 +3374,7 @@ async function cmdAllowance(): Promise<string> {
   lines.push(`🔗 模式: ${mode}`);
   lines.push("┌─ 免费额度状态 ──────────────────────────────┐");
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       const { getPublicClient, getAddresses } = await import("./chain/client.js");
@@ -3419,7 +3457,7 @@ async function cmdDaily(): Promise<string> {
   const lines: string[] = [];
   lines.push(`🔗 模式: ${mode}`);
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const player = await ensurePlayerAddress(state);
       const { encodeFunctionData } = await import("viem");
@@ -3495,7 +3533,7 @@ async function cmdAdminWithdraw(amountArg?: string, targetArg?: string): Promise
   lines.push(`🔗 模式: ${mode}`);
   lines.push("⚠️  提款需要管理员权限 (onlyOwner)");
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     if (!targetArg || !/^0x[0-9a-fA-F]{40}$/.test(targetArg)) {
       return "用法 (onchain): admin withdraw <amount> <target 0x...>\n建议 target 设为 Gnosis Safe 多签。";
     }
@@ -3554,7 +3592,7 @@ async function cmdAdminExecute(amountArg?: string): Promise<string> {
   const lines: string[] = [];
   lines.push(`🔗 模式: ${mode}`);
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const admin = await ensurePlayerAddress(state);
       const { encodeFunctionData, parseEther } = await import("viem");
@@ -3611,7 +3649,7 @@ async function cmdAdminStatus(): Promise<string> {
   lines.push("🔐 Admin — 提款状态");
   lines.push("─".repeat(50));
 
-  if (mode === "onchain") {
+  if (mode === "onchain" || mode === "sepolia") {
     try {
       const { getPublicClient, getAddresses } = await import("./chain/client.js");
       const { heroNftAbi } = await import("./chain/abi.js");

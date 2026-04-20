@@ -90,7 +90,10 @@ claude
 # Follow the storyteller's prompts
 ```
 
-`XIAKE_MODE=mock` for local-only (no chain, no keys — default for first-time). `XIAKE_MODE=onchain` for live Base Sepolia with OnchainOS.
+Three modes:
+- `XIAKE_MODE=mock` (default) — local state, no chain, no keys
+- `XIAKE_MODE=sepolia` — **direct-sign on Base Sepolia** (use this for testnet demo; OnchainOS doesn't support testnets). Set `XIAKE_PLAYER_PK` (`cast wallet new` + faucet)
+- `XIAKE_MODE=onchain` — OnchainOS MPC wallet + Paymaster on Base mainnet (production)
 
 ### As a developer (running tests)
 

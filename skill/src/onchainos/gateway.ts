@@ -8,6 +8,8 @@
 // a paymaster policy for gas sponsorship, and relays the tx to Base Sepolia.
 
 import { OnchainOSError, request } from "./client.js";
+import { getMode } from "../utils/mode.js";
+import { directSignAndSend, directWaitForTx } from "../chain/directSigner.js";
 
 /** Chain id for Base Sepolia — the deploy target for HeroNFT / Arena. */
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
@@ -54,6 +56,20 @@ export interface SignAndSendResult {
  * preserved on `.message` and any structured data on `.data`.
  */
 export async function signAndSend(input: SignAndSendInput): Promise<SignAndSendResult> {
+  // Branch: in `sepolia` mode we sign locally with XIAKE_PLAYER_PK and never
+  // touch OnchainOS (which doesn't support testnet chains). All higher-level
+  // tool handlers call through this one function, so this is the sole
+  // divergence point between OnchainOS and direct-sign backends.
+  if (getMode() === "sepolia") {
+    const res = await directSignAndSend({
+      to: input.to,
+      data: input.data,
+      value: input.value,
+      gasLimit: input.gasLimit,
+    });
+    return { txHash: res.txHash };
+  }
+
   const chainId = input.chainId ?? BASE_SEPOLIA_CHAIN_ID;
   const body = {
     chainId: String(chainId),
@@ -93,6 +109,13 @@ export async function waitForTx(params: {
   timeoutMs?: number;
   pollIntervalMs?: number;
 }): Promise<TxStatus> {
+  // Direct-sign backend uses viem's waitForTransactionReceipt — much simpler
+  // than the poll loop below and gets real receipts, not a gateway abstraction.
+  if (getMode() === "sepolia") {
+    const r = await directWaitForTx(params.txHash, { timeoutMs: params.timeoutMs });
+    return { txHash: params.txHash, state: r.state, blockNumber: r.blockNumber };
+  }
+
   const chainId = params.chainId ?? BASE_SEPOLIA_CHAIN_ID;
   const timeoutMs = params.timeoutMs ?? 60_000;
   const pollIntervalMs = params.pollIntervalMs ?? 2_000;
