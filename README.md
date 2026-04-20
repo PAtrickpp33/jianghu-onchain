@@ -40,6 +40,44 @@ $ claude
 
 ---
 
+## 🏛️ Architecture
+
+```
+ ┌─────────────────────────────────────────────────────────────┐
+ │  Player in Claude Code / Cursor / Codex                     │
+ │  types: /xiake                                              │
+ └──────────────────────┬──────────────────────────────────────┘
+                        │
+          ┌─────────────▼──────────────┐
+          │  xiake-skill (TypeScript)  │  ~/.claude/skills/xiake/
+          │  persona + CLI + renderer  │  9,606 LOC
+          └─────────────┬──────────────┘
+                        │ sign & route tx
+          ┌─────────────▼──────────────┐
+          │  OnchainOS WaaS + Paymaster│  OKX Dev Portal
+          │  MPC wallet · gas sponsor  │
+          └─────────────┬──────────────┘
+                        │ submit
+ ┌──────────────────────▼──────────────────────────────────────┐
+ │  Base (Sepolia now · Mainnet next)                          │
+ │                                                             │
+ │    HeroNFT ── forwards paid fees ──→ GachaVault (48h lock)  │
+ │       │                                                     │
+ │       ├── setArena ───────→ Arena (v3)                      │
+ │       │                        │                            │
+ │    SkillRegistry ←── uses ─────┤                            │
+ │                                ├── reads ──→ StageRegistry  │
+ │                                │                            │
+ │                                └── simulates ─→ BattleEngine│
+ │                                                   │         │
+ │                                       uses ──→ SectAffinity │
+ └─────────────────────────────────────────────────────────────┘
+```
+
+**2,579 LOC Solidity · 7 contracts · 5 deployed, 2 library** — design details in [docs/TECHNICAL_DESIGN.md](./docs/TECHNICAL_DESIGN.md).
+
+---
+
 ## 🌍 Live on Base Sepolia
 
 **As of 2026-04-20**: 21 battles settled · 21 heroes minted · 0.014 ETH in vault · 13 stages registered — all verifiable on BaseScan.
