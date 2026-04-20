@@ -65,25 +65,113 @@ fi
 - 预检失败(比如 `SKILL_ROOT` 推导错、`npm install` 报错)时,**不要硬 fail 整个游戏会话**,而是回退到"告诉玩家手动跑哪些命令"。
 - `package.json` 的标准位置是 `skill/package.json`(**不是** `skill/src/package.json`,`src/` 下只有 TS 源)。
 
-## 四种运行模式
+## 🧭 首次 Onboarding(玩家第一次 `/xiake` 时跑)
 
-| `XIAKE_MODE` | 特征 | 何时用 |
-|---|---|---|
-| `mock` (default) | 纯本地 · 无链 · 无私钥 | 第一次试玩,离线体验 |
-| **`sepolia`** | **直签 EVM · 用 `XIAKE_PLAYER_PK` · Base Sepolia 免费 gas** | **测试网真链游玩**,绕过 OnchainOS(OnchainOS 不支持 testnet) |
-| `onchain` | OnchainOS WaaS + Paymaster MPC 钱包 · 玩家零私钥 | Base **mainnet** 生产模式 |
-| `hybrid` | 读链上 · 写本地 | dev 调试 |
+**这一节是给 Claude 看的**。Pre-flight(node_modules)跑完后,**在 `init` 命令之前**,Claude 必须检查玩家选没选模式。决策树:
 
-### sepolia 模式必须的 env
+### Step 0 · 检查 `XIAKE_MODE` 是否已设
 
 ```bash
-export XIAKE_MODE=sepolia
-export XIAKE_PLAYER_PK=0x<64-hex>        # cast wallet new 生成,faucet 领点 sepolia ETH
-export XIAKE_HERO_ADDRESS=0x056bB8B1AeaaF4e5eB6a6b016fDE80C60e100f4A
-export XIAKE_ARENA_ADDRESS=0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61
-export XIAKE_VAULT_ADDRESS=0x47135Ba1F3D9674869a63da07f40e42a57318A44
-export BASE_SEPOLIA_RPC=https://sepolia.base.org
+echo "${XIAKE_MODE:-unset}"
 ```
+
+- 如果是 `mock` / `sepolia` / `onchain` / `hybrid` 之一 → **跳过向导**,直接跑 `init`
+- 如果是 `unset` → **必须问玩家要跑哪个模式**(下面 Step 1)
+
+### Step 1 · 问玩家模式选择
+
+Claude 主动向玩家展示三选一(不要技术术语,讲人话):
+
+> ⛩️ 欢迎进入侠客擂台!请选一种游玩模式:
+>
+> 1️⃣ **本地试玩** (mock) · 不花钱、不碰链、状态存本机 · 适合第一次摸索
+> 2️⃣ **测试网真链** (sepolia) · 免费 Sepolia ETH、每招都上 Base 链、可在 BaseScan 查 · **推荐这条**
+> 3️⃣ **主网(OnchainOS)** · 真钱付费抽卡、OKX MPC 托管钱包、gas 代付 · **暂未部署,默认选 1 或 2**
+>
+> 回我:1 / 2 / 3,或说"试玩"/"测试网"/"主网"。
+
+### Step 2 · 按选择走不同配置路径
+
+#### 选项 1: mock (零配置)
+```bash
+export XIAKE_MODE=mock
+node "$XIAKE_CLI_PATH" init
+```
+直接开玩。
+
+#### 选项 2: sepolia (引导一次,永久可玩)
+
+**a. 检查是否已有** `XIAKE_PLAYER_PK`
+```bash
+echo "${XIAKE_PLAYER_PK:-unset}"
+```
+- 已设 → 跳到 Step 3
+- 未设 → 继续下面的 b/c/d
+
+**b. 给玩家生成一个测试网钱包**
+
+如果玩家没提供 pk,Claude 主动说:"先给你生成一个**一次性测试钱包**(和主钱包隔离,纯演示用)。" 然后跑:
+```bash
+cast wallet new 2>&1
+```
+**把输出里的 Address + Private Key 原样贴给玩家**,并加一句警告:
+> ⚠️ 这把私钥只用于 Sepolia 测试网,**别往里打真钱**,别在 GitHub / 截图里泄露。
+
+**c. 告诉玩家去水龙头领 0.001 Sepolia ETH**
+
+贴链接 + 粘地址:
+> 📍 去这里领测试币(免费):https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet
+> 把刚才那个 **Address** 粘进去领 0.05 ETH,几秒到账。
+> 或备用:https://www.alchemy.com/faucets/base-sepolia
+
+等玩家回复"领到了"之后往下。
+
+**d. 帮玩家把环境变量落到 `.env`**
+
+引导玩家把 pk 写进 `.env`(不要写在 shell rc,防误传)。告诉他:
+```bash
+cd "$SKILL_ROOT/.."          # 到仓库根
+cp .env.example .env         # 已 pre-fill 合约地址 + RPC
+# 编辑 .env,把 XIAKE_PLAYER_PK= 这行填上刚才生成的 pk
+```
+
+或者 Claude 直接跑一次 `sed`(如果玩家同意):
+```bash
+# 例: 把 pk 塞进 .env(仅当玩家明确授权)
+sed -i "s|^XIAKE_PLAYER_PK=.*|XIAKE_PLAYER_PK=${pk}|" "$REPO_ROOT/.env"
+```
+
+**e. 本 session 加载 env 并 init**
+
+```bash
+set -a && source "$REPO_ROOT/.env" && set +a
+export XIAKE_MODE=sepolia
+node "$XIAKE_CLI_PATH" init
+```
+
+#### 选项 3: onchain (Base mainnet,目前只能打招呼)
+
+**如果合约还没部署到 mainnet**,Claude 应该说:
+> ⚠️ 主网还没部署。目前只有 Sepolia 测试网可真链玩。要不要改走选项 2?
+
+如果以后 mainnet 上线,这一段会加引导 `onchainos wallet login` 的 AK 登录 + Paymaster policy 配置流程。
+
+### Step 3 · 验证配置 + 进游戏
+
+跑:
+```bash
+node "$XIAKE_CLI_PATH" init
+```
+第一行会打印 `🔗 模式: mock|sepolia|onchain`。对上预期 → 正常进主菜单。不对 → 回头查哪步漏了。
+
+## 四种模式速查
+
+| `XIAKE_MODE` | 特征 | 何时用 | 需要 env |
+|---|---|---|---|
+| `mock` (默认) | 纯本地 · 无链 · 无私钥 | 第一次试玩,离线体验 | 无 |
+| **`sepolia`** ⭐ | **直签 EVM · 用 `XIAKE_PLAYER_PK` · Base Sepolia 免费 gas** | **测试网真链游玩**,绕过 OnchainOS | `XIAKE_PLAYER_PK` + 合约地址(`.env.example` 已 pre-fill) |
+| `onchain` | OnchainOS WaaS + Paymaster MPC 钱包 · 玩家零私钥 | Base **mainnet** 生产(未部署) | `OKX_*` 四件套 + `OKX_PAYMASTER_POLICY_ID` |
+| `hybrid` | 读链上 · 写本地 | dev 调试 | 合约地址 |
 
 **Legacy 兼容**:存档目录自动从 `~/.wuxia` 迁移到 `~/.xiake`(旧玩家保留进度)。旧 `WUXIA_*` 环境变量仍作为 fallback 读取。
 
