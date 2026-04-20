@@ -37,7 +37,7 @@ No website · no wallet extension · no app install · no private key management
 | **StageRegistry** | [`0x613497e20D196952f169B316fd7Ad8f8eb519df7`](https://sepolia.basescan.org/address/0x613497e20D196952f169B316fd7Ad8f8eb519df7) | 13 stages registered · owner can hot-add more |
 | **SkillRegistry** | [`0xC1b36B703A349e2fB1B29c4B912C3144Ab69f3E1`](https://sepolia.basescan.org/address/0xC1b36B703A349e2fB1B29c4B912C3144Ab69f3E1) | 21 baseline skills · 7 sects × 3 each |
 
-Live stats (as of 2026-04-20): **20 battles settled · 18 heroes minted · 0.014 ETH vault revenue**, all verifiable on BaseScan.
+Live stats (as of 2026-04-20): **21 battles settled · 21 heroes minted · 0.014 ETH vault revenue · 13 stages registered**, all verifiable on BaseScan. Every on-chain action the skill takes prints a `🔗 <label> · tx 0x… · https://sepolia.basescan.org/tx/…` line so judges can click through.
 
 ---
 
@@ -72,45 +72,93 @@ Combat is **a pure Solidity function** (`BattleEngine.simulate`). 30 rounds max,
 
 ---
 
-## Quick Start (2 minutes)
+## Quick Start
 
-### As a player (Claude Code)
+### Three Modes
+
+| `XIAKE_MODE` | Who it's for | Chain | Signs with | Gas |
+|---|---|---|---|---|
+| `mock` (default) | First-time tryout, offline play | — | — | — |
+| **`sepolia`** | **Testnet demo** — judge can click into every BaseScan tx | Base Sepolia | Local `XIAKE_PLAYER_PK` | Player pays (free faucet ETH) |
+| `onchain` | Production | Base Mainnet | OnchainOS MPC wallet | Paymaster-sponsored |
+
+> **Why three modes?** OnchainOS only supports mainnet chains, but we need a way for hackathon judges to verify real on-chain tx without committing to mainnet ETH. `sepolia` mode bridges that gap: same contract calls, same game logic, just with a local keypair instead of OnchainOS MPC.
+
+### Play in `mock` mode (offline, 2 minutes)
 
 ```bash
-# 1. Install the skill (one-time, user-level)
-#    skill.md goes to your Claude skills directory
-mkdir -p ~/.claude/skills/xiake
-cp skill/.claude/skills/xiake/skill.md ~/.claude/skills/xiake/  # if skill.md lives in repo
-export XIAKE_CLI_PATH="$PWD/skill/dist/cli.js"
-
-# 2. Build the TypeScript CLI
+# 1. Build the CLI
 cd skill && npm install && npm run build
+export XIAKE_CLI_PATH="$PWD/dist/cli.js"
 
-# 3. Play (in any Claude Code session)
+# 2. Install the Claude skill (one-time, user-level)
+mkdir -p ~/.claude/skills/xiake
+cp ~/.claude/skills/xiake/skill.md ~/.claude/skills/xiake/  # or copy from repo
+
+# 3. Play in Claude Code
 claude
 > /xiake
-# Follow the storyteller's prompts
+> 招募一个侠客   # or "mint 1"
+> 闯第一关       # or "pve 1-1"
 ```
 
-Three modes:
-- `XIAKE_MODE=mock` (default) — local state, no chain, no keys
-- `XIAKE_MODE=sepolia` — **direct-sign on Base Sepolia** (use this for testnet demo; OnchainOS doesn't support testnets). Set `XIAKE_PLAYER_PK` (`cast wallet new` + faucet)
-- `XIAKE_MODE=onchain` — OnchainOS MPC wallet + Paymaster on Base mainnet (production)
+State persists in `~/.xiake/state.json`. No chain, no keys.
+
+### Play in `sepolia` mode (real on-chain, 5 minutes)
+
+```bash
+# 1. Generate a throwaway testnet wallet
+cast wallet new
+# Address:     0xABC...
+# Private key: 0xDEF...
+
+# 2. Fund it from the Coinbase faucet (free)
+#    https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet
+#    → send to 0xABC...
+
+# 3. Point the skill at Sepolia + your wallet
+export XIAKE_MODE=sepolia
+export XIAKE_PLAYER_PK=0xDEF...
+export XIAKE_HERO_ADDRESS=0x056bB8B1AeaaF4e5eB6a6b016fDE80C60e100f4A
+export XIAKE_ARENA_ADDRESS=0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61
+export XIAKE_VAULT_ADDRESS=0x47135Ba1F3D9674869a63da07f40e42a57318A44
+export BASE_SEPOLIA_RPC=https://sepolia.base.org
+
+# 4. Play — every action now hits Base Sepolia
+claude
+> /xiake
+> 领取每日签到
+```
+
+Output:
+```
+✅ 今日福利已领取!本周累积 1/7
+🔗 grantDailyMint · tx 0xc1e02a…6006 · https://sepolia.basescan.org/tx/0xc1e02ab6...
+```
+
+Every on-chain action prints a unified tx line with a clickable BaseScan URL:
+
+```
+🔗 mintHeroTier(silver, paid) · tx 0x9100…34be · https://sepolia.basescan.org/tx/0x9100…
+🔗 startPve(1-1)              · tx 0xbeef…dead · https://sepolia.basescan.org/tx/0xbeef…
+🔗 challenge                   · tx 0xabc1…ef98 · https://sepolia.basescan.org/tx/0xabc1…
+🔗 setDefenseTeam              · tx 0x1234…5678 · https://sepolia.basescan.org/tx/0x1234…
+```
 
 ### As a developer (running tests)
 
 ```bash
 cd contracts
-forge install foundry-rs/forge-std openzeppelin/openzeppelin-contracts@v5.0.2
+# Foundry deps are checked in as git submodules — no `forge install` needed
 forge test               # 114 tests, all green
-forge snapshot --check   # regression gate for gas
+forge snapshot           # regenerate gas baseline
 ```
 
-### As a judge (inspect the live deployment)
+### As a judge (inspect the live deployment, 1 minute)
 
-- See all battles + events: https://sepolia.basescan.org/address/0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61#events
-- Vault revenue ledger: https://sepolia.basescan.org/address/0x47135Ba1F3D9674869a63da07f40e42a57318A44
-- Full test run with 45+ on-chain tx: [docs/C_LEVEL_TEST_SUMMARY.md](./docs/C_LEVEL_TEST_SUMMARY.md)
+- All battles + events: <https://sepolia.basescan.org/address/0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61#events>
+- Vault revenue ledger: <https://sepolia.basescan.org/address/0x47135Ba1F3D9674869a63da07f40e42a57318A44>
+- Full autonomous test run with 45+ on-chain tx from 9 AI agents: [docs/C_LEVEL_TEST_SUMMARY.md](./docs/C_LEVEL_TEST_SUMMARY.md)
 
 ---
 

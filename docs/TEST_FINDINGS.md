@@ -38,6 +38,21 @@
 - 🚨 **新发现 P1-2**: `stage.minReputation` 存了但合约不强制 → 玩家 rep=0 可绕 skill 直接 cast call 跳关 (见下)
 - ℹ️ agent 的两个 "ABI 漂移" 误报:实际 `getMintAllowance` 是 5-tuple (3+0+0+0+0 返回正常),`getStoryProgress` 是 `(uint8,uint64[],uint256)` 正常。agent 自己 decode 错,非合约问题
 
+### ✅ P2-3 (已修, 2026-04-20) · `mint` 默认 count=3 导致"抽一个变三个"
+- **发现**: 真人玩 sepolia 模式,说"先抽一个",Claude 调 `mint`(无参),CLI 默认 3 → 抽出 3 个侠客,和玩家预期完全不匹配。首次触发时 HeroNFT `_ensureSeeded` 静默送 +3 新手保底,掩盖了数量 mismatch。
+- **根因**: `skill/src/cli.ts` cmdMint `let count = countArg ? parseInt(countArg, 10) : 3`。PRD §1.1 说"新手首发 3 免费",代码把这条规则固化成了默认参数,但实际 `_ensureSeeded` 已经处理 seed,不需要 CLI 也用 3 做默认。
+- **修法**:
+  1. cmdMint 默认 count 从 **3 → 1**
+  2. 成功文案改成 `你请求 N 抽 · 新增 M 位`,N != M 时警告
+  3. `allowance` view 检测新玩家状态,预告 `+3 新手首抽保底`
+  4. `skill.md` 加 **数量翻译硬规则**表,禁止 Claude 调 `mint` 不带参数
+- **Commit**: `581b023`
+
+### ✅ P2-4 (已修, 2026-04-20) · tx hash 显示格式 11 处不一致
+- **发现**: 不同命令显示 tx 的格式五花八门:`🔗 onchain tx: 0xabc`、`   tx: 0xabc`、`🔗 healHero tx: 0xabc`,大部分没 BaseScan URL
+- **修法**: 新增 `skill/src/utils/txDisplay.ts`,统一格式 `🔗 <label> · tx 0xabc1…ef98 · https://sepolia.basescan.org/tx/0xabc1…`。11 个 on-chain write 点全改。`XIAKE_CHAIN=base` 自动切 mainnet explorer
+- **Commit**: `9753402`
+
 ### ✅ P1-2 (已修) · stage.minReputation 未强制
 
 - **发现**: Phase 2 Sepolia · P2 用 rep=0 成功调用 `startPve(stage=5, minRep=55)`
@@ -111,4 +126,5 @@
 | 2026-04-20 Phase 3 | 114 + 15 cast probes | +0 forge | 0 | 0 | 0 | 18 revert paths 匹配 |
 | 2026-04-20 Phase 4 | 114 + 4 agent race | +0 | 0 | 0 | 0 | 合约层 clean,3 个运维踩坑记录 |
 | 2026-04-20 Phase 5 | 114 + 18 serial battles | +0 | 0 | 0 | 0 | gas 稳定 1.46M avg · 无 state drift |
-| **总计** | **114 unit + 5 invariant + 18 stress + 15 edge + 9 agent integration** | — | **0** | **0** | **0** | **全绿** |
+| 2026-04-20 真人 sepolia 模式试玩 | + 真人试玩 | — | 0 | 0 | **2** (mint UX + tx display) | 2 个 P2 当场修完 |
+| **总计** | **114 unit + 5 invariant + 18 stress + 15 edge + 9 agent integration + 真人 sepolia** | — | **0** | **0** | **0** | **全绿** |

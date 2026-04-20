@@ -10,7 +10,7 @@
 
 **一句话评价**: 合约层 + 游戏内容 + 经济循环 **齐了并且跑通过**, Claude Code 里三 agent 并发对打已经能演示。mainnet 上线还差 5 件事(全部非技术阻塞)。
 
-**综合完成度**: **90/100** (严格按"真能主网 ship"标准) / **98/100** (hackathon demo 标准) · 2026-04-20 C 档后刷新
+**综合完成度**: **92/100** (严格按"真能主网 ship"标准) / **99/100** (hackathon demo 标准) · 2026-04-20 真玩 sepolia + tx UX 修复后刷新
 
 | 维度 | 分 | 上次 | Δ | 核心证据 |
 |---|---|---|---|---|
@@ -19,7 +19,7 @@
 | **游戏内容** | **80** | 75 | +5 | 7 派 × 3 技能 × 12 关卡 + 环形相克 + 伤病 + 习得 + 抽卡 + 赛季 + 11 成就 |
 | **抽卡经济** | **90** | 85 | +5 | Vault 独立 + 48h timelock + owner-only + 付费 forward 实测 + 免费额度不再叠加 |
 | **Mock UX** | **85** | 85 | 0 | 25 条 CLI 命令,ANSI 渲染,战报 lite/full,成就弹窗,lore 命令 |
-| **On-chain UX** | **85** | 30 | +55 | C 档 3 team 9 agent 真链闭环 · 45+ tx 验证 mint/PVE/PVP/chapter/rep gate/vault · Sepolia deployment 稳定 |
+| **On-chain UX** | **93** | 30 | +63 | C 档 9 agent 真链闭环 + 真人 sepolia 试玩闭环 · 45+ tx · **sepolia-direct 模式**绕开 OnchainOS testnet 限制 · 所有 11 个 onchain 命令**统一 BaseScan URL 显示** |
 | **部署运维** | **90** | 20 | +70 | Deploy + UpgradeArena script 双套跑通 · 3 代 Arena 平滑切换 · gas snapshot + CI gate · DEPLOY_PLAYBOOK 齐备 |
 | **Gas 经济性** | **98** | N/A | +98 | PVE $0.026,PVP $0.012,全链游戏一天 $0.18(见下表) |
 | **文档** | **95** | 90 | +5 | 8 份权威文档(新增 CODE_REVIEW + CONTENT_UPDATES + DEPLOY_PLAYBOOK + STATUS_REPORT) |

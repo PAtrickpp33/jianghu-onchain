@@ -68,6 +68,11 @@ tmp/
 scratch/
 .cursor/
 .claude/
+# But DO track the distributed skill definition so players have it in the repo.
+!skill/.claude/
+!skill/.claude/skills/
+!skill/.claude/skills/xiake/
+!skill/.claude/skills/xiake/skill.md
 .aider*
 
 # ── Demo artifacts (large, regenerable) ──────────────────────────────────────
