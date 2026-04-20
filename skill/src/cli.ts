@@ -1248,8 +1248,12 @@ async function cmdMint(
   const mode = getMode();
   const state = loadState();
 
-  let count = countArg ? parseInt(countArg, 10) : 3;
-  if (!Number.isFinite(count) || count < 1) count = 3;
+  // Default 1 so "mint" without a count means "pull once". Historically this
+  // defaulted to 3 (matching the PRD §1.1 seed allowance), but that made
+  // "抽一个" silently produce 3 heroes — a confusing UX bug found in live play.
+  // The skill persona must pass the explicit count requested by the player.
+  let count = countArg ? parseInt(countArg, 10) : 1;
+  if (!Number.isFinite(count) || count < 1) count = 1;
   if (count > 10) count = 10; // Hard limit for paid mint
 
   const isPaid = options?.paid ?? false;
@@ -1445,9 +1449,14 @@ async function cmdMint(
   } else {
     const payHint = isPaid
       ? (chainPaidCost ? ` · 付费 ${chainPaidCost}` : ` · 付费 ${tierPriceEth(tier, count).toFixed(4)} ETH`)
-      : (freeMints > 0 ? ` · 免费 ${freeMints}/${count}` : "");
+      : (freeMints > 0 ? ` · 免费抽 ${freeMints} 次` : "");
     const tierHint = isPaid ? ` · ${TIER_LABEL[tier]}` : "";
-    lines.push(`🎉 招募成功!新增 ${newHeroes.length} 位豪杰 (累积 ${state.heroes.length} 位)${payHint}${tierHint}`);
+    lines.push(`🎉 招募成功!你请求 ${count} 抽 · 新增 ${newHeroes.length} 位豪杰 (累积 ${state.heroes.length} 位)${payHint}${tierHint}`);
+    // Flag if result count diverges from the requested count so the player
+    // (and the skill persona) don't silently accept a 3-for-1 mismatch.
+    if (newHeroes.length !== count) {
+      lines.push(`⚠️ 实际招募 ${newHeroes.length} 位 ≠ 请求 ${count} 次 · 链上 HeroNFT 可能首次触发 +3 新手保底 seed`);
+    }
     if (isPaid && tenPull) lines.push("💰 十连特惠 -10%");
   }
   lines.push("═".repeat(50));
@@ -3397,9 +3406,15 @@ async function cmdAllowance(): Promise<string> {
       ]);
       const [free, boss, daily, paid, remaining] = allowanceTuple;
       const poolEth = (Number(poolBalance) / 1e18).toFixed(4);
+      // First-mint seed grant: HeroNFT._ensureSeeded adds +3 freeGranted on
+      // the player's very first mint touch (PRD §1.1). Before that fires,
+      // `free` reads 0 but the player actually has 3 pending. Flag it so
+      // players don't panic or over-plan around the visible number.
+      const seedPending = free === 0 && paid === 0 && boss === 0;
+      const effectiveRemaining = seedPending ? remaining + 3 : remaining;
       lines.push(`│ 👤 玩家: ${player}`);
-      lines.push(`│ 🎁 可用额度 (remaining): ${remaining}`);
-      lines.push(`│ 📅 本周免费: ${free}/5`);
+      lines.push(`│ 🎁 可用额度: ${effectiveRemaining}` + (seedPending ? `  (含 +3 新手首抽保底)` : ""));
+      lines.push(`│ 📅 本周免费: ${free}/5` + (seedPending ? `  · 首次 mint 触发后变 3` : ""));
       lines.push(`│ 🏆 BOSS 击败奖励: ${boss}`);
       lines.push(`│ ☀️ 日登累积: ${daily}`);
       lines.push(`│ 💰 已付费次数: ${paid}`);
