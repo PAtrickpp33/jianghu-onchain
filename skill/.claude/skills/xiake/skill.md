@@ -21,6 +21,50 @@ export XIAKE_CLI_PATH="$HOME/jianghu/skill/dist/cli.js"
 
 未设置时,请提示玩家设置该变量(指向 `skill/dist/cli.js`),再继续。调用模板:`node "$XIAKE_CLI_PATH" <command>`。
 
+## 🔧 首次运行 Pre-flight(每个 session 第一次调 CLI 前必跑)
+
+**这一节是给 Claude 看的,不是给玩家**。在本 session 第一次执行 `node "$XIAKE_CLI_PATH" <command>` 之前,**必须**依序做三件事:
+
+1. **CLI 路径是否存在** · `test -f "$XIAKE_CLI_PATH"`。若不存在,告诉玩家 `cd skill && npm install && npm run build` 然后**停止**,别继续发命令。
+2. **node_modules 是否已装** · 从 `$XIAKE_CLI_PATH` 推导 skill 根:`SKILL_ROOT="$(dirname "$(dirname "$XIAKE_CLI_PATH")")"`(`…/skill/dist/cli.js` → `…/skill/`)。检查 `$SKILL_ROOT/node_modules/` 目录。
+   - **不存在 → 自动跑** `cd "$SKILL_ROOT" && npm install`。预计 60–120 秒,**跟玩家说一声"首次安装依赖,稍候 1–2 分钟"**,装完再继续。
+3. **dist 是否比 src 旧** · 比对 `$SKILL_ROOT/dist/cli.js` 的 mtime 和 `$SKILL_ROOT/src/` 下最新 `.ts` 的 mtime。若 dist 旧,提示玩家 `cd "$SKILL_ROOT" && npm run build`。
+
+完整 bash 模板(Claude 跑一次就够,session 内复用结果):
+
+~~~bash
+SKILL_ROOT="$(dirname "$(dirname "$XIAKE_CLI_PATH")")"
+
+# 1) CLI 存在吗
+if [ ! -f "$XIAKE_CLI_PATH" ]; then
+  echo "❌ CLI 未构建。请执行: cd \"$SKILL_ROOT\" && npm install && npm run build"
+  exit 1
+fi
+
+# 2) node_modules 装了吗(缺则自动 install)
+if [ ! -d "$SKILL_ROOT/node_modules" ]; then
+  echo "📦 首次运行,自动安装依赖(1-2 分钟,请勿中断)..."
+  ( cd "$SKILL_ROOT" && npm install ) || {
+    echo "❌ npm install 失败。请手动: cd \"$SKILL_ROOT\" && npm install"
+    exit 1
+  }
+fi
+
+# 3) dist 比 src 旧吗
+NEWEST_TS=$(find "$SKILL_ROOT/src" -name '*.ts' -printf '%T@\n' 2>/dev/null | sort -n | tail -1)
+DIST_MTIME=$(stat -c '%Y' "$SKILL_ROOT/dist/cli.js" 2>/dev/null || echo 0)
+if [ -n "$NEWEST_TS" ] && [ "${NEWEST_TS%.*}" -gt "$DIST_MTIME" ]; then
+  echo "⚠️ dist/cli.js 比源码旧,建议 cd \"$SKILL_ROOT\" && npm run build"
+fi
+~~~
+
+### 规则
+
+- **只在本 session 第一次调 CLI 时跑预检**。之后每条命令不再重跑。
+- 如果玩家明确说"别自动装依赖",尊重玩家,只**打印**手动步骤给他。
+- 预检失败(比如 `SKILL_ROOT` 推导错、`npm install` 报错)时,**不要硬 fail 整个游戏会话**,而是回退到"告诉玩家手动跑哪些命令"。
+- `package.json` 的标准位置是 `skill/package.json`(**不是** `skill/src/package.json`,`src/` 下只有 TS 源)。
+
 ## 四种运行模式
 
 | `XIAKE_MODE` | 特征 | 何时用 |
