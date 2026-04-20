@@ -61,7 +61,7 @@ let cachedAxios: AxiosInstance | null = null;
 
 /**
  * Read env vars and cache them. Throws if any required key is missing so that
- * the skill fails fast during `wuxia_init` instead of silently mis-signing.
+ * the skill fails fast during `xiake_init` instead of silently mis-signing.
  */
 export function getConfig(): OnchainOSConfig {
   if (cachedConfig) return cachedConfig;

@@ -29,7 +29,7 @@ export interface ContractAddresses {
 
 export class MissingAddressError extends Error {
   constructor(which: "hero" | "arena") {
-    const envVar = which === "hero" ? "WUXIA_HERO_ADDRESS" : "WUXIA_ARENA_ADDRESS";
+    const envVar = which === "hero" ? "XIAKE_HERO_ADDRESS" : "XIAKE_ARENA_ADDRESS";
     super(
       `合约地址未配置: 请在 MCP env 中设置 ${envVar} (格式 0x...40 chars)。` +
         ` 参考 mcp.json 示例。`,
@@ -47,8 +47,8 @@ function validateAddress(raw: string | undefined, which: "hero" | "arena"): Addr
 
 export function getAddresses(): ContractAddresses {
   return {
-    hero: validateAddress(process.env.WUXIA_HERO_ADDRESS, "hero"),
-    arena: validateAddress(process.env.WUXIA_ARENA_ADDRESS, "arena"),
+    hero: validateAddress(process.env.XIAKE_HERO_ADDRESS, "hero"),
+    arena: validateAddress(process.env.XIAKE_ARENA_ADDRESS, "arena"),
   };
 }
 

@@ -1,5 +1,5 @@
 // Renders the confirmation card after setDefenseTeam succeeds
-// (consumed by wuxia_set_defense_team).
+// (consumed by xiake_set_defense_team).
 
 import type { Hero } from "../types.js";
 import { bold, faint, link, status } from "./ansi.js";
@@ -30,7 +30,7 @@ export function renderDefenseSet(input: DefenseSetInput): string {
   lines.push("");
   lines.push(faint(`tx: ${txUrl ? link(shortTx) + `  (${txUrl})` : shortTx}`));
   lines.push("");
-  lines.push(faint("下一步: `wuxia_list_arena` 查擂台对手,`wuxia_challenge` 主动挑战。"));
+  lines.push(faint("下一步: `xiake_list_arena` 查擂台对手,`xiake_challenge` 主动挑战。"));
 
   return lines.join("\n");
 }

@@ -47,7 +47,7 @@ export interface WalletBalanceSnapshot {
 }
 
 /**
- * Create a new MPC-custodied wallet. Safe to call on every `wuxia_init`: if
+ * Create a new MPC-custodied wallet. Safe to call on every `xiake_init`: if
  * the account already exists the call will succeed and return the existing
  * record (OnchainOS behaves idempotently for this endpoint when the same
  * `accountId` is reused).
@@ -78,7 +78,7 @@ export async function getWalletAccount(accountId: string): Promise<WalletAccount
 
 /**
  * Get native + ERC-20 + ERC-721 balances for a wallet on a specific chain.
- * For the Jianghu skill we only care about Base Sepolia (`chainId=84532`).
+ * For the Xiake skill we only care about Base Sepolia (`chainId=84532`).
  */
 export async function getWalletBalance(params: {
   address: `0x${string}`;

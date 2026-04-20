@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-/// @title Jianghu shared types
+/// @title Xiake shared types
 /// @notice Enums / structs used across HeroNFT, SkillRegistry, BattleEngine and Arena.
 /// @dev Shape kept in sync with `skill/src/types.ts` so the TypeScript skill can decode
 ///      ABI values without a separate schema.
@@ -10,12 +10,20 @@ library Types {
     // Enums
     // ---------------------------------------------------------------------
 
-    /// @notice Three sects available in the MVP.
-    ///         Ordering matters — used as array index in SkillRegistry.
+    /// @notice Seven sects in the live game. Indices are load-bearing: they're
+    ///         used as array index into SkillRegistry.sectSkills and into the
+    ///         SectAffinity cycle. DO NOT reorder — append-only.
+    ///         The original 3-sect MVP (Shaolin/Tangmen/Emei) keeps its
+    ///         indices; the four additions (Wudang/Beggars/Huashan/Ming) are
+    ///         tacked on at the end.
     enum Sect {
-        Shaolin, // 0  坦克 / 治疗
-        Tangmen, // 1  刺客 / 爆发
-        Emei     // 2  辅助 / 净化
+        Shaolin, // 0  坦克 / 治疗      (少林)
+        Tangmen, // 1  刺客 / 爆发      (唐门)
+        Emei,    // 2  辅助 / 净化      (峨眉)
+        Wudang,  // 3  均衡 / 反制      (武当)
+        Beggars, // 4  控场 / buff      (丐帮)
+        Huashan, // 5  高暴击 / 剑术    (华山)
+        Ming     // 6  毒 DOT / 破防    (明教)
     }
 
     /// @notice Skill effect categories. Extend here when adding new behaviours.
@@ -97,8 +105,13 @@ library Types {
         uint256  totalExp;
     }
 
-    /// @notice Full battle report stored by Arena; replayable client-side.
-    /// @dev Teams stored for replay so the skill doesn't need to re-query HeroNFT.
+    /// @notice Summary record stored by Arena. The full `BattleEvent[]` log
+    ///         is NOT stored on-chain (expensive SSTOREs) — it's emitted in a
+    ///         `BattleLog` event and replayable deterministically from
+    ///         `(attackerTeam, defenderTeam, seed)` via `BattleEngine.simulate`.
+    /// @dev Teams are kept in storage so the skill can replay without
+    ///      re-querying HeroNFT (the NFT's hero stats could have drifted via
+    ///      `unlockSkill` and we want the replay to match what actually fought).
     struct BattleReport {
         bytes32        battleId;
         address        attacker;
@@ -106,8 +119,8 @@ library Types {
         uint8          winner;     // 0 = attacker, 1 = defender, 2 = draw
         uint8          totalRounds;
         uint64         timestamp;
+        uint256        seed;       // Deterministic replay seed (prevrandao ^ battleId)
         Hero[3]        attackerTeam;
         Hero[3]        defenderTeam;
-        BattleEvent[]  events;
     }
 }

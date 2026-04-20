@@ -1,17 +1,69 @@
-// Shared types across the wuxia-skill codebase.
+// Shared types across the xiake-skill codebase.
 // Authoritative reference: docs/TECHNICAL_DESIGN.md §3.2
 
+// Sect indices must mirror Solidity `Types.Sect` exactly. Append-only.
 export enum Sect {
   Shaolin = 0,
   Tangmen = 1,
   Emei = 2,
+  Wudang = 3,
+  Beggars = 4,
+  Huashan = 5,
+  Ming = 6,
 }
 
 export const SECT_NAMES: Record<Sect, string> = {
   [Sect.Shaolin]: "少林",
   [Sect.Tangmen]: "唐门",
   [Sect.Emei]: "峨眉",
+  [Sect.Wudang]: "武当",
+  [Sect.Beggars]: "丐帮",
+  [Sect.Huashan]: "华山",
+  [Sect.Ming]: "明教",
 };
+
+/// One-line role tag used in menus.
+export const SECT_ROLE: Record<Sect, string> = {
+  [Sect.Shaolin]: "坦克·治疗",
+  [Sect.Tangmen]: "刺客·爆发",
+  [Sect.Emei]: "辅助·净化",
+  [Sect.Wudang]: "均衡·反制",
+  [Sect.Beggars]: "控场·buff",
+  [Sect.Huashan]: "剑术·高暴",
+  [Sect.Ming]: "毒术·破防",
+};
+
+/// Unicode icon shown in hero cards.
+export const SECT_ICON: Record<Sect, string> = {
+  [Sect.Shaolin]: "🥋",
+  [Sect.Tangmen]: "🗡️",
+  [Sect.Emei]: "⛩️",
+  [Sect.Wudang]: "☯️",
+  [Sect.Beggars]: "🥖",
+  [Sect.Huashan]: "⚔️",
+  [Sect.Ming]: "🔥",
+};
+
+/// Ring-of-7 counter matrix. Each sect does +15% damage to the next in the
+/// ring and takes +15% from the one before. Matches SectAffinity.sol.
+export const SECT_CYCLE: Sect[] = [
+  Sect.Shaolin,
+  Sect.Tangmen,
+  Sect.Emei,
+  Sect.Wudang,
+  Sect.Beggars,
+  Sect.Huashan,
+  Sect.Ming,
+];
+
+export function sectCounters(attacker: Sect, defender: Sect): number {
+  const aIdx = SECT_CYCLE.indexOf(attacker);
+  const dIdx = SECT_CYCLE.indexOf(defender);
+  if (aIdx < 0 || dIdx < 0) return 10000;
+  if ((aIdx + 1) % SECT_CYCLE.length === dIdx) return 11500; // attacker counters defender
+  if ((dIdx + 1) % SECT_CYCLE.length === aIdx) return 8500;  // defender counters attacker
+  return 10000;
+}
 
 export enum SkillKind {
   Damage = 0,

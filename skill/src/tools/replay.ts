@@ -1,4 +1,4 @@
-// Tool: wuxia_replay
+// Tool: xiake_replay
 // Reads a stored BattleReport by battleId and renders it. Accepts the literal
 // string "last" to replay the most recent battle in this session.
 
@@ -25,7 +25,7 @@ export const inputSchema = z
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_replay",
+  name: "xiake_replay",
   description: "回放历史战报。传入 battleId (bytes32) 或字面量 'last' 重放本会话最后一场。",
   inputSchema: {
     type: "object",

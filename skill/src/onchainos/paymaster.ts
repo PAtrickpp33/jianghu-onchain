@@ -2,7 +2,7 @@
 //
 // Authoritative reference: docs/TECHNICAL_DESIGN.md §4.3
 //
-// The Paymaster sponsors gas for end users so that the Jianghu skill is "zero
+// The Paymaster sponsors gas for end users so that the Xiake skill is "zero
 // ETH required" from the player's perspective. Policy definitions live in the
 // Dev Portal — this module just provides convenience wrappers for:
 //
@@ -20,7 +20,7 @@ import type { SignAndSendInput } from "./gateway.js";
 /**
  * The policy id the skill will use by default. Either injected via env
  * (preferred, so ops can rotate without a redeploy) or falls back to the
- * well-known Dev Portal policy configured for the Jianghu project.
+ * well-known Dev Portal policy configured for the Xiake project.
  */
 export function getDefaultPolicyId(): string | undefined {
   return process.env.OKX_PAYMASTER_POLICY_ID || undefined;
@@ -51,7 +51,7 @@ export interface PaymasterPolicy {
 
 /**
  * Fetch the current state of a paymaster policy. Useful for a "health check"
- * during `wuxia_init` — we can surface a clear error when the sponsor wallet
+ * during `xiake_init` — we can surface a clear error when the sponsor wallet
  * is empty instead of letting tx submissions fail downstream.
  */
 export async function getPolicy(policyId: string): Promise<PaymasterPolicy> {

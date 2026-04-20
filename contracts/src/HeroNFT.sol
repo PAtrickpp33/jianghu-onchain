@@ -8,13 +8,16 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 import {Types} from "./Types.sol";
 import {SkillRegistry} from "./SkillRegistry.sol";
+import {GachaVault} from "./GachaVault.sol";
 
 /// @title HeroNFT
-/// @notice ERC-721 of Jianghu heroes. Players may call `mintHero(to, count, isPaid)`
-///         to forge heroes either off free allowance or by paying `PRICE_PER_MINT`.
+/// @notice ERC-721 of Xiake heroes. Players may call `mintHero(to, count, isPaid)`
+///         to forge heroes either off free allowance or by paying `pricePerMint`.
 ///         `mintGenesis(to)` is retained as a back-compat convenience that
-///         mints exactly one hero per sect on first call.
+///         mints one hero per sect on first call.
 /// @dev Attribute formulas are intentionally simple and reproducible off-chain.
+///      Paid-mint proceeds are forwarded to an external `GachaVault` — this
+///      contract never holds gacha ETH.
 contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
@@ -36,6 +39,10 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
 
     /// @notice Read-only registry so wallets can resolve skill metadata without bundling ABI.
     SkillRegistry public immutable registry;
+
+    /// @notice External vault that receives every paid-mint fee. Immutable — the
+    ///         owner cannot redirect receipts after deploy.
+    GachaVault public immutable vault;
 
     /// @notice Per-hero wound / cooldown state. Populated by Arena after battles.
     mapping(uint256 => Types.HeroHealth) public heroHealth;
@@ -154,15 +161,8 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
     ///         fires for ids >= threshold (擂台 BOSS in PRD §2.4).
     uint8   public constant BOSS_ARENA_THRESHOLD = 5;
 
-    /// @notice Mandatory delay between `scheduleWithdrawal` and `executeWithdrawal`.
-    uint64  public constant WITHDRAWAL_DELAY = 2 days;
-
-    /// @notice Pending withdrawal target / amount / unlock time. Single outstanding schedule.
-    address public pendingWithdrawalTarget;
-    uint256 public pendingWithdrawalAmount;
-    uint64  public pendingWithdrawalUnlockAt;
-
-    /// @notice When true, all mint + withdrawal entrypoints revert. Owner-flippable.
+    /// @notice When true, mint entrypoints revert. Owner-flippable. Withdrawal
+    ///         is now handled by the external GachaVault.
     bool public emergencyPaused;
 
     // ---------------------------------------------------------------------
@@ -183,8 +183,7 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
     event BossMintGranted(address indexed player, uint8 bossId);
     event DailyMintGranted(address indexed player, uint8 day);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
-    event WithdrawalScheduled(address indexed target, uint256 amount, uint64 executeAfter);
-    event WithdrawalExecuted(address indexed target, uint256 amount);
+    event RevenueForwarded(address indexed vault, uint256 amount);
     event EmergencyPauseToggled(bool paused);
 
     // Wave 2 — gacha v2 deepening (pity / tier / exchange / referral)
@@ -219,11 +218,13 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
     // Construction
     // ---------------------------------------------------------------------
 
-    constructor(address initialOwner, SkillRegistry registry_)
-        ERC721(unicode"江湖侠客", "JHHERO")
+    constructor(address initialOwner, SkillRegistry registry_, GachaVault vault_)
+        ERC721(unicode"侠客", "XIAKE")
         Ownable(initialOwner)
     {
+        require(address(vault_) != address(0), "HeroNFT: zero vault");
         registry = registry_;
+        vault = vault_;
     }
 
     // ---------------------------------------------------------------------
@@ -298,26 +299,23 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
     // Public mint
     // ---------------------------------------------------------------------
 
-    /// @notice Free mint: 3 heroes, one per sect. Retained for back-compat.
-    /// @param to  Recipient. Typically the MPC wallet address from OnchainOS WaaS.
-    /// @return tokenIds The three newly minted token ids (sect order: Shaolin, Tangmen, Emei).
+    /// @notice Convenience wrapper: "招募 3 侠客" free-mint onboarding. Equivalent
+    ///         to `mintHero(to, 3, false)` but returns a fixed-size `uint256[3]`
+    ///         for the skill CLI's legacy ABI.
+    /// @dev    Consumes 3 from the player's `freeGranted` allowance pool so it
+    ///         cannot be called indefinitely — a second call after the initial
+    ///         3-free grant is spent reverts with `"HeroNFT: no free allowance"`.
+    ///         Uses the same 7-sect random pool as `mintHero`, so new players
+    ///         can land Wudang/Beggars/Huashan/Ming on day 1.
     function mintGenesis(address to)
         external
         returns (uint256[3] memory tokenIds)
     {
-        require(to != address(0), "HeroNFT: zero recipient");
-
-        for (uint8 i = 0; i < 3; i++) {
-            Types.Sect sect = Types.Sect(i);
-            uint256 id = nextTokenId++;
-            tokenIds[i] = id;
-
-            _heroes[id] = _generateHero(id, sect, to);
-            _safeMint(to, id);
-            emit HeroMinted(to, id, sect);
-        }
-
-        playerMintCount[to] += 3;
+        uint256[] memory ids = _mintHeroTiered(to, 3, false, 1);
+        // `_mintHeroTiered` always returns a length-`count` dynamic array.
+        tokenIds[0] = ids[0];
+        tokenIds[1] = ids[1];
+        tokenIds[2] = ids[2];
         emit GenesisMinted(to, tokenIds);
     }
 
@@ -382,6 +380,14 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
                 (bool ok, ) = payable(msg.sender).call{value: refund}("");
                 require(ok, "HeroNFT: refund failed");
             }
+
+            // Forward net revenue to the external vault. HeroNFT never holds
+            // gacha ETH — only the vault owner can withdraw it (48h timelock).
+            (bool okFwd, ) = payable(address(vault)).call{value: cost}(
+                abi.encodeWithSignature("deposit()")
+            );
+            require(okFwd, "HeroNFT: vault forward failed");
+            emit RevenueForwarded(address(vault), cost);
         } else {
             require(msg.value == 0, "HeroNFT: free mint not payable");
             MintAllowance storage a = playerAllowance[to];
@@ -446,7 +452,10 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
         ));
 
         for (uint8 i = 0; i < count; i++) {
-            Types.Sect sect = Types.Sect(uint8((seed >> (i * 8)) % 3));
+            // Seven-sect roll (0..6). Old 3-sect pool expanded uniformly;
+            // sectCycle-based pity still forces cycle[0..2] so the guaranteed
+            // "rotation sect" behaviour is unchanged for existing players.
+            Types.Sect sect = Types.Sect(uint8((seed >> (i * 8)) % 7));
             uint256 id = nextTokenId++;
             tokenIds[i] = id;
 
@@ -513,44 +522,11 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
         emit PriceUpdated(old, newPrice);
     }
 
-    /// @notice Flip the emergency pause — blocks mints + withdrawal execution.
+    /// @notice Flip the emergency pause — blocks mints. Vault withdrawal is
+    ///         controlled independently by the vault's own pause.
     function setEmergencyPause(bool paused) external onlyOwner {
         emergencyPaused = paused;
         emit EmergencyPauseToggled(paused);
-    }
-
-    /// @notice Queue a withdrawal that can only execute after `WITHDRAWAL_DELAY`.
-    /// @dev Overwrites any previously scheduled withdrawal — single outstanding slot.
-    function scheduleWithdrawal(address target, uint256 amount) external onlyOwner {
-        require(target != address(0), "HeroNFT: zero target");
-        require(amount > 0 && amount <= address(this).balance, "HeroNFT: bad amount");
-
-        uint64 unlockAt = uint64(block.timestamp) + WITHDRAWAL_DELAY;
-        pendingWithdrawalTarget = target;
-        pendingWithdrawalAmount = amount;
-        pendingWithdrawalUnlockAt = unlockAt;
-        emit WithdrawalScheduled(target, amount, unlockAt);
-    }
-
-    /// @notice Execute the previously scheduled withdrawal. `amount` must match
-    ///         the scheduled amount exactly so a compromised owner cannot inflate it
-    ///         after the 48h community window closed.
-    function executeWithdrawal(uint256 amount) external onlyOwner nonReentrant whenNotPaused {
-        require(pendingWithdrawalTarget != address(0), "HeroNFT: no pending");
-        require(pendingWithdrawalAmount == amount, "HeroNFT: amount mismatch");
-        require(block.timestamp >= pendingWithdrawalUnlockAt, "HeroNFT: timelock active");
-        require(amount <= address(this).balance, "HeroNFT: short balance");
-
-        address target = pendingWithdrawalTarget;
-
-        // Clear state before transfer (CEI).
-        pendingWithdrawalTarget   = address(0);
-        pendingWithdrawalAmount   = 0;
-        pendingWithdrawalUnlockAt = 0;
-
-        (bool ok, ) = payable(target).call{value: amount}("");
-        require(ok, "HeroNFT: transfer failed");
-        emit WithdrawalExecuted(target, amount);
     }
 
     // ---------------------------------------------------------------------
@@ -639,19 +615,22 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
         remaining = r > 255 ? 255 : uint8(r);
     }
 
-    /// @notice Current ETH held by the contract (pool balance, pre-withdrawal).
+    /// @notice Pool balance proxy — HeroNFT itself never holds gacha ETH; the
+    ///         real balance lives in the vault. Kept as a view so existing
+    ///         clients don't need to learn about the vault address.
     function getPoolBalance() external view returns (uint256) {
-        return address(this).balance;
+        return vault.getPoolBalance();
     }
 
-    /// @notice Tuple view over the pending withdrawal slot so clients don't have
-    ///         to assemble three separate RPC reads.
+    /// @notice Proxy over the vault's pending withdrawal slot. Matches the
+    ///         previous tuple shape so the skill's `admin withdraw` UI keeps
+    ///         working without changes.
     function pendingWithdrawal()
         external
         view
         returns (address target, uint256 amount, uint64 executeAfter)
     {
-        return (pendingWithdrawalTarget, pendingWithdrawalAmount, pendingWithdrawalUnlockAt);
+        return vault.getPendingWithdrawal();
     }
 
     // ---------------------------------------------------------------------
@@ -707,35 +686,7 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
             abi.encode(tokenId, sect, owner_, block.prevrandao, block.chainid)
         ));
 
-        // Base random rolls
-        uint16 hpRoll   = uint16(seed % 101);              // 0..100
-        uint16 atkRoll  = uint16((seed >> 16) % 41);       // 0..40
-        uint16 defRoll  = uint16((seed >> 32) % 61);       // 0..60
-        uint16 spdRoll  = uint16((seed >> 48) % 51);       // 0..50
-        uint16 critRoll = uint16((seed >> 64) % 3001);     // 0..30.00%
-
-        uint16 hp;  uint16 atk;  uint16 def;  uint16 spd;  uint16 crit;
-
-        if (sect == Types.Sect.Shaolin) {
-            hp   = 150 + hpRoll;      // 150..250 (tanky)
-            atk  = 60  + atkRoll;     // 60..100
-            def  = 80  + defRoll;     // 80..140
-            spd  = 50  + spdRoll / 2; // 50..75   (slow)
-            crit = critRoll / 3;      // 0..10%
-        } else if (sect == Types.Sect.Tangmen) {
-            hp   = 100 + hpRoll / 2;  // 100..150 (frail)
-            atk  = 80  + atkRoll;     // 80..120
-            def  = 40  + defRoll / 2; // 40..70
-            spd  = 80  + spdRoll / 2; // 80..105
-            crit = 500 + critRoll;    // 5..35%
-        } else {
-            // Emei — balanced / fast utility
-            hp   = 120 + hpRoll * 2 / 3;
-            atk  = 70  + atkRoll;
-            def  = 50  + defRoll / 2;
-            spd  = 75  + spdRoll / 2;
-            crit = critRoll / 2;      // 0..15%
-        }
+        (uint16 hp, uint16 atk, uint16 def, uint16 spd, uint16 crit) = _sectStats(sect, seed);
 
         uint8[3] memory skillIds = registry.sectSkills(sect);
         uint8[] memory skills = new uint8[](3);
@@ -753,5 +704,51 @@ contract HeroNFT is ERC721, Ownable, ReentrancyGuard {
             crit:    crit,
             skillIds: skills
         });
+    }
+
+    /// @dev Rolls 5 base stats for a given sect. Pulled out of `_generateHero`
+    ///      to keep the legacy compiler (no via_ir) below the 16-local stack
+    ///      limit. Returned tuple is deliberately small.
+    function _sectStats(Types.Sect sect, uint256 seed)
+        internal
+        pure
+        returns (uint16 hp, uint16 atk, uint16 def, uint16 spd, uint16 crit)
+    {
+        uint16 hpRoll   = uint16(seed % 101);              // 0..100
+        uint16 atkRoll  = uint16((seed >> 16) % 41);       // 0..40
+        uint16 defRoll  = uint16((seed >> 32) % 61);       // 0..60
+        uint16 spdRoll  = uint16((seed >> 48) % 51);       // 0..50
+        uint16 critRoll = uint16((seed >> 64) % 3001);     // 0..30.00%
+
+        if (sect == Types.Sect.Shaolin) {
+            hp   = 150 + hpRoll;        atk = 60  + atkRoll;
+            def  = 80  + defRoll;       spd = 50  + spdRoll / 2;
+            crit = critRoll / 3;
+        } else if (sect == Types.Sect.Tangmen) {
+            hp   = 100 + hpRoll / 2;    atk = 80  + atkRoll;
+            def  = 40  + defRoll / 2;   spd = 80  + spdRoll / 2;
+            crit = 500 + critRoll;
+        } else if (sect == Types.Sect.Emei) {
+            hp   = 120 + hpRoll * 2 / 3; atk = 70 + atkRoll;
+            def  = 50  + defRoll / 2;    spd = 75 + spdRoll / 2;
+            crit = critRoll / 2;
+        } else if (sect == Types.Sect.Wudang) {
+            hp   = 130 + hpRoll * 3 / 4; atk = 70 + atkRoll;
+            def  = 70  + defRoll * 2 / 3; spd = 65 + spdRoll / 2;
+            crit = critRoll / 3;
+        } else if (sect == Types.Sect.Beggars) {
+            hp   = 160 + hpRoll * 3 / 4; atk = 75 + atkRoll;
+            def  = 65  + defRoll / 2;    spd = 55 + spdRoll / 2;
+            crit = 200 + critRoll / 4;
+        } else if (sect == Types.Sect.Huashan) {
+            hp   = 110 + hpRoll / 2;     atk = 90 + atkRoll;
+            def  = 45  + defRoll / 2;    spd = 85 + spdRoll / 2;
+            crit = 1000 + critRoll;
+        } else {
+            // Ming
+            hp   = 125 + hpRoll * 2 / 3; atk = 78 + atkRoll;
+            def  = 40  + defRoll / 2;    spd = 70 + spdRoll / 2;
+            crit = 600 + critRoll / 2;
+        }
     }
 }

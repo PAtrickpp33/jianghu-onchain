@@ -1,4 +1,4 @@
-// Tool: wuxia_init
+// Tool: xiake_init
 // Main game entry point. Works in both mock and on-chain mode.
 // Shows welcome screen + character status + game menu.
 
@@ -12,9 +12,9 @@ export const inputSchema = z.object({}).strict();
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_init",
+  name: "xiake_init",
   description:
-    "进入江湖大乱斗。展示欢迎画面和游戏主菜单。首次进入引导创建角色。无需任何配置即可运行。",
+    "进入侠客擂台。展示欢迎画面和游戏主菜单。首次进入引导创建角色。无需任何配置即可运行。",
   inputSchema: {
     type: "object",
     properties: {},
@@ -23,7 +23,7 @@ export const toolDef = {
 } as const;
 
 function isMockMode(): boolean {
-  return !process.env.WUXIA_ARENA_ADDRESS || !process.env.WUXIA_HERO_ADDRESS;
+  return !process.env.XIAKE_ARENA_ADDRESS || !process.env.XIAKE_HERO_ADDRESS;
 }
 
 export async function handler(raw: unknown) {
@@ -69,7 +69,7 @@ export async function handler(raw: unknown) {
 }
 
 function sessionAccountId(): string {
-  if (process.env.WUXIA_PLAYER_ID) return process.env.WUXIA_PLAYER_ID;
+  if (process.env.XIAKE_PLAYER_ID) return process.env.XIAKE_PLAYER_ID;
   const seed = `${process.pid}:${process.env.HOSTNAME ?? "local"}`;
-  return `wuxia-${createHash("sha256").update(seed).digest("hex").slice(0, 16)}`;
+  return `xiake-${createHash("sha256").update(seed).digest("hex").slice(0, 16)}`;
 }

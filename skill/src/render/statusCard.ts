@@ -1,4 +1,4 @@
-// Renders the player's initialization status card (consumed by wuxia_init).
+// Renders the player's initialization status card (consumed by xiake_init).
 
 import { bold, faint, link, status } from "./ansi.js";
 
@@ -22,11 +22,11 @@ export function renderStatusCard(input: StatusCardInput): string {
   if (hasMintedGenesis) {
     lines.push("");
     lines.push(status(`✓ 你已领取 genesis 侠客`));
-    lines.push(faint("下一步: 使用 `wuxia_list_heroes` 查看阵容,或 `wuxia_start_pve` 开始闯关。"));
+    lines.push(faint("下一步: 使用 `xiake_list_heroes` 查看阵容,或 `xiake_start_pve` 开始闯关。"));
   } else {
     lines.push("");
     lines.push(bold("🎁 尚未领取 genesis 侠客"));
-    lines.push(faint("下一步: 使用 `wuxia_mint_hero` 免费铸造三位侠客 (gas 由江湖盟主代付)。"));
+    lines.push(faint("下一步: 使用 `xiake_mint_hero` 免费铸造三位侠客 (gas 由江湖盟主代付)。"));
   }
 
   return lines.join("\n");

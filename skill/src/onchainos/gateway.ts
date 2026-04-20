@@ -2,7 +2,7 @@
 //
 // Authoritative reference: docs/TECHNICAL_DESIGN.md §4.3
 //
-// The Jianghu skill NEVER holds a private key. Every state-changing contract
+// The Xiake skill NEVER holds a private key. Every state-changing contract
 // call (Arena.challenge, HeroNFT.mintGenesis, …) is marshalled here into a
 // signAndSend request. OnchainOS signs with the custodied MPC wallet, attaches
 // a paymaster policy for gas sponsorship, and relays the tx to Base Sepolia.

@@ -1,11 +1,11 @@
-# 《江湖大乱斗》PRD v1.0
+# 《侠客擂台》PRD v1.0
 
 | 字段 | 值 |
 |---|---|
 | 版本 | v1.0 |
 | 日期 | 2026-04-16 |
 | 状态 | Hackathon MVP |
-| 项目代号 | Jianghu / wuxia-skill |
+| 项目代号 | Jianghu / xiake-skill |
 | Slogan | **The first game built for AI, not humans. 首款为 AI 而生的链游。** |
 
 ---
@@ -14,7 +14,7 @@
 
 ### 1.1 一句话
 
-一个**完全运行在 AI Agent 里的链上武侠对战游戏** —— 用户无需打开任何网页或 App,在 Claude Code / Cursor / Codex / OpenCode 等 MCP 兼容环境里直接 `/wuxia-fight` 即可游玩。所有游戏数据(侠客 NFT、战斗结算、排行)完全上链。
+一个**完全运行在 AI Agent 里的链上武侠对战游戏** —— 用户无需打开任何网页或 App,在 Claude Code / Cursor / Codex / OpenCode 等 MCP 兼容环境里直接 `/xiake` 即可游玩。所有游戏数据(侠客 NFT、战斗结算、排行)完全上链。
 
 ### 1.2 核心创新
 
@@ -54,7 +54,7 @@ Q 宠大乱斗(回合制节奏) + 皇室战争(卡组构筑) + 金庸群侠传 D
 ### US-1:首次体验(30 秒入门)
 
 ```
-玩家: /wuxia-fight
+玩家: /xiake
 Claude: ⛩️ 欢迎入江湖。你的钱包尚无侠客。
         要免费招募三位创世侠客吗?(gas 由江湖盟主代付)
 玩家: 好

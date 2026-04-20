@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CLI entry point for the Jianghu game engine.
+// CLI entry point for the Xiake game engine.
 // Called by Claude Code skill via Bash: `node cli.js <command> [args...]`
 //
 // Commands:
@@ -20,6 +20,8 @@ import {
   Sect,
   SkillKind,
   SECT_NAMES,
+  SECT_ICON,
+  SECT_CYCLE,
   type Hero,
   type HeroState,
   type BattleEvent,
@@ -31,7 +33,15 @@ import { getMode, type Mode } from "./utils/mode.js";
 
 // ── State file ──────────────────────────────────────────────────────────────
 
-const STATE_DIR = process.env.WUXIA_STATE_DIR ?? join(process.env.HOME ?? process.env.USERPROFILE ?? ".", ".wuxia");
+// Legacy `WUXIA_STATE_DIR` / `.wuxia` reads kept as fallbacks so existing
+// players' save files keep loading after the rebrand. New installs use
+// XIAKE_STATE_DIR and write to `.xiake`.
+const _HOME = process.env.HOME ?? process.env.USERPROFILE ?? ".";
+const _LEGACY_STATE_DIR = join(_HOME, ".wuxia");
+const _DEFAULT_STATE_DIR = join(_HOME, ".xiake");
+const STATE_DIR = process.env.XIAKE_STATE_DIR
+  ?? process.env.WUXIA_STATE_DIR
+  ?? (existsSync(join(_LEGACY_STATE_DIR, "state.json")) ? _LEGACY_STATE_DIR : _DEFAULT_STATE_DIR);
 const STATE_FILE = join(STATE_DIR, "state.json");
 
 interface HeroHealth {
@@ -120,6 +130,7 @@ interface AchievementDef {
 const ACHIEVEMENTS: AchievementDef[] = [
   { id: "first_mint",           name: "初出茅庐",       desc: "首次铸造侠客",              target: 1 },
   { id: "three_sects",          name: "三派汇流",       desc: "集齐少林/唐门/峨眉 3 派侠客", target: 1 },
+  { id: "seven_sects",          name: "七宗合鸣",       desc: "集齐 7 派侠客(含武当/丐帮/华山/明教)", target: 1 },
   { id: "first_kill",           name: "初斩敌首",       desc: "首次在战斗中击杀敌人",      target: 1 },
   { id: "first_pve",            name: "初战告捷",       desc: "首胜 PVE 关卡",             target: 1 },
   { id: "first_boss",           name: "首杀暴君",       desc: "首次击杀章节 BOSS",         target: 1 },
@@ -308,15 +319,27 @@ function saveState(state: GameState): void {
 
 // ── Skill metadata ──────────────────────────────────────────────────────────
 
+// Skill id 0..20 mirror Solidity SkillBook exactly.
+// 100+ reserved for mock-only BOSS signature beads / legacy drops.
 const SKILL_NAMES: Record<number, string> = {
+  // Shaolin 0..2
   0: "金钟罩", 1: "易筋经", 2: "狮子吼",
+  // Tangmen 3..5
   3: "穿心刺", 4: "暗器急雨", 5: "毒针",
+  // Emei 6..8
   6: "慈航普渡", 7: "净心咒", 8: "般若掌",
-  // BOSS signature skills (skill-bead drops)
-  9: "降龙十八掌", 10: "太极真功", 11: "乾坤大挪移",
-  // Arena BOSS signatures (Week 3 名人擂台, task #11)
-  12: "三丰真功", 13: "降龙十八掌·极", 14: "九阴白骨爪",
-  15: "碧海潮生曲", 16: "蛤蟆功",
+  // Wudang 9..11
+  9: "太极推手", 10: "梯云纵", 11: "真武破军",
+  // Beggars 12..14
+  12: "降龙十八掌", 13: "打狗棒法", 14: "醉八仙",
+  // Huashan 15..17
+  15: "独孤九剑", 16: "紫霞神功", 17: "华山群剑",
+  // Ming 18..20
+  18: "圣火令", 19: "乾坤大挪移", 20: "毒沙掌",
+  // Legacy BOSS-bead labels (kept so existing mock saves with old skill ids
+  // still render something instead of "技能#NN"). No battle engine impact.
+  100: "降龙十八掌·极", 101: "九阴白骨爪", 102: "碧海潮生曲", 103: "蛤蟆功",
+  104: "三丰真功",
 };
 
 const SKILL_EFFECT: Record<number, { kind: SkillKind; multBps: number; aoe: boolean; heal: number }> = {
@@ -373,6 +396,10 @@ const SECT_DEFAULT_TAG: Record<Sect, { tag: string; role: string }> = {
   [Sect.Shaolin]: { tag: "金刚",  role: "少林正道" },
   [Sect.Tangmen]: { tag: "暗影",  role: "唐门毒影" },
   [Sect.Emei]:    { tag: "清心",  role: "峨眉剑修" },
+  [Sect.Wudang]:  { tag: "太极",  role: "武当真传" },
+  [Sect.Beggars]: { tag: "降龙",  role: "丐帮长老" },
+  [Sect.Huashan]: { tag: "剑冢",  role: "华山剑客" },
+  [Sect.Ming]:    { tag: "圣火",  role: "明教骨干" },
 };
 
 function tagFor(h: Hero): { tag: string; role: string } {
@@ -384,7 +411,7 @@ function tagFor(h: Hero): { tag: string; role: string } {
 type ReportMode = "lite" | "full" | "epic";
 
 function resolveReportMode(defaultMode: ReportMode): ReportMode {
-  const raw = (process.env.WUXIA_REPORT_MODE ?? "").toLowerCase();
+  const raw = (process.env.XIAKE_REPORT_MODE ?? "").toLowerCase();
   if (raw === "lite" || raw === "full" || raw === "epic") return raw;
   return defaultMode;
 }
@@ -489,6 +516,26 @@ const HERO_POOL: Array<{ sect: Sect; name: string; hp: number; atk: number; def:
   { sect: Sect.Emei, name: "灭绝", hp: 120, atk: 80, def: 65, spd: 75, crit: 1200, skillIds: [8, 6, 7] },
   { sect: Sect.Emei, name: "风陵", hp: 125, atk: 72, def: 68, spd: 82, crit: 1000, skillIds: [6, 8, 7] },
   { sect: Sect.Emei, name: "周芷若", hp: 115, atk: 85, def: 60, spd: 78, crit: 1400, skillIds: [8, 7, 6] },
+  // ── 武当 ────────────────────────────────────────────────────────────────
+  { sect: Sect.Wudang, name: "张三丰", hp: 200, atk: 100, def: 108, spd: 75, crit: 800, skillIds: [9, 10, 11] },
+  { sect: Sect.Wudang, name: "宋远桥", hp: 170, atk: 92,  def: 100, spd: 72, crit: 700, skillIds: [9, 11, 10] },
+  { sect: Sect.Wudang, name: "俞莲舟", hp: 175, atk: 95,  def: 95,  spd: 78, crit: 750, skillIds: [11, 9, 10] },
+  { sect: Sect.Wudang, name: "张松溪", hp: 165, atk: 90,  def: 102, spd: 70, crit: 650, skillIds: [10, 9, 11] },
+  // ── 丐帮 ────────────────────────────────────────────────────────────────
+  { sect: Sect.Beggars, name: "洪七公", hp: 225, atk: 110, def: 85, spd: 65, crit: 400, skillIds: [12, 13, 14] },
+  { sect: Sect.Beggars, name: "乔峰",   hp: 235, atk: 120, def: 90, spd: 68, crit: 500, skillIds: [12, 14, 13] },
+  { sect: Sect.Beggars, name: "黄蓉",   hp: 180, atk: 95,  def: 70, spd: 78, crit: 900, skillIds: [13, 14, 12] },
+  { sect: Sect.Beggars, name: "鲁有脚", hp: 215, atk: 100, def: 88, spd: 60, crit: 350, skillIds: [12, 13, 14] },
+  // ── 华山 ────────────────────────────────────────────────────────────────
+  { sect: Sect.Huashan, name: "令狐冲", hp: 145, atk: 125, def: 60, spd: 108, crit: 3500, skillIds: [15, 16, 17] },
+  { sect: Sect.Huashan, name: "岳灵珊", hp: 130, atk: 115, def: 55, spd: 102, crit: 3000, skillIds: [15, 17, 16] },
+  { sect: Sect.Huashan, name: "风清扬", hp: 140, atk: 130, def: 58, spd: 110, crit: 4000, skillIds: [17, 15, 16] },
+  { sect: Sect.Huashan, name: "宁中则", hp: 135, atk: 112, def: 62, spd: 100, crit: 2800, skillIds: [16, 15, 17] },
+  // ── 明教 ────────────────────────────────────────────────────────────────
+  { sect: Sect.Ming, name: "张无忌",   hp: 185, atk: 130, def: 72, spd: 95,  crit: 1800, skillIds: [18, 19, 20] },
+  { sect: Sect.Ming, name: "杨逍",     hp: 165, atk: 120, def: 65, spd: 98,  crit: 2000, skillIds: [18, 20, 19] },
+  { sect: Sect.Ming, name: "范遥",     hp: 170, atk: 115, def: 68, spd: 92,  crit: 1700, skillIds: [20, 18, 19] },
+  { sect: Sect.Ming, name: "韦一笑",   hp: 160, atk: 118, def: 60, spd: 105, crit: 2100, skillIds: [19, 20, 18] },
 ];
 
 // ── Stage / chapter config ──────────────────────────────────────────────────
@@ -515,146 +562,146 @@ interface ChapterDef {
 const mkHero = (tokenId: bigint, sect: Sect, name: string, hp: number, atk: number, def: number, spd: number, crit: number, skillIds: number[]): Hero =>
   ({ tokenId, sect, name, hp, atk, def, spd, crit, skillIds });
 
+// Mock 剧情与链上 `StageRegistry` 初始 seed (contracts/script/SeedStages.sol)
+// 对齐: 三章 × 四关 = 12 关,分别 "初入江湖 / 门派恩怨 / 魔教来袭"。
 const CHAPTERS: ChapterDef[] = [
   {
     id: 1,
-    name: "入门江湖",
+    name: "初入江湖",
     minRep: 0,
     stages: [
       {
-        id: "1-1", chapter: 1, stageIdx: 1, name: "少林藏经阁·外", diff: "简单", stars: "⭐",
-        boss: "守门武僧", isChapterBoss: false,
+        id: "1-1", chapter: 1, stageIdx: 1, name: "少林试炼", diff: "简单", stars: "⭐",
+        boss: "少林三武僧", isChapterBoss: false,
         bossTeam: [
-          mkHero(9101n, Sect.Shaolin, "圆智", 180, 72, 80, 50, 300, [0, 1, 2]),
-          mkHero(9102n, Sect.Shaolin, "圆通", 168, 70, 82, 48, 250, [1, 0, 2]),
-          mkHero(9103n, Sect.Shaolin, "圆觉", 174, 74, 78, 52, 350, [2, 0, 1]),
+          mkHero(9101n, Sect.Shaolin, "圆智·武僧", 165, 72, 90, 55, 400, [0, 1, 2]),
+          mkHero(9102n, Sect.Shaolin, "圆通·武僧", 172, 70, 92, 50, 350, [1, 0, 2]),
+          mkHero(9103n, Sect.Shaolin, "圆觉·武僧", 156, 76, 86, 58, 500, [2, 0, 1]),
         ],
       },
       {
-        id: "1-2", chapter: 1, stageIdx: 2, name: "少林藏经阁·内", diff: "简单", stars: "⭐",
-        boss: "藏经阁香积", isChapterBoss: false,
+        id: "1-2", chapter: 1, stageIdx: 2, name: "唐门小试", diff: "简单", stars: "⭐",
+        boss: "唐门幼师", isChapterBoss: false,
         bossTeam: [
-          mkHero(9104n, Sect.Shaolin, "香积", 192, 78, 85, 52, 350, [0, 1, 2]),
-          mkHero(9105n, Sect.Shaolin, "澄观", 186, 82, 83, 54, 400, [1, 0, 2]),
-          mkHero(9106n, Sect.Shaolin, "无相", 198, 77, 88, 50, 300, [2, 0, 1]),
+          mkHero(9104n, Sect.Tangmen, "青翎·幼师", 110, 90, 45, 90, 2500, [3, 4, 5]),
+          mkHero(9105n, Sect.Tangmen, "银蝶·幼师", 118, 88, 48, 85, 2200, [3, 5, 4]),
+          mkHero(9106n, Sect.Tangmen, "雪雁·幼师", 114, 92, 46, 88, 2400, [4, 3, 5]),
         ],
       },
       {
-        id: "1-3", chapter: 1, stageIdx: 3, name: "少林达摩院", diff: "普通", stars: "⭐⭐",
-        boss: "达摩院首座", isChapterBoss: false,
+        id: "1-3", chapter: 1, stageIdx: 3, name: "峨眉清谈", diff: "普通", stars: "⭐⭐",
+        boss: "峨眉三女尼", isChapterBoss: false,
         bossTeam: [
-          mkHero(9107n, Sect.Shaolin, "觉远", 210, 86, 92, 54, 450, [0, 1, 2]),
-          mkHero(9108n, Sect.Shaolin, "智光", 204, 84, 90, 55, 400, [1, 0, 2]),
-          mkHero(9109n, Sect.Shaolin, "慧能", 216, 89, 95, 52, 500, [2, 0, 1]),
+          mkHero(9107n, Sect.Emei, "静玄·女尼", 135, 72, 56, 82, 1200, [6, 7, 8]),
+          mkHero(9108n, Sect.Emei, "静虚·女尼", 140, 70, 58, 80, 1100, [7, 6, 8]),
+          mkHero(9109n, Sect.Emei, "静寂·女尼", 130, 76, 54, 85, 1300, [8, 6, 7]),
         ],
       },
       {
-        id: "1-4", chapter: 1, stageIdx: 4, name: "少林方丈·玄苦", diff: "BOSS", stars: "⭐⭐⭐",
-        boss: "玄苦·方丈/空见·首座/渡劫·罗汉", isChapterBoss: true,
+        id: "1-4", chapter: 1, stageIdx: 4, name: "武当坐忘", diff: "BOSS", stars: "⭐⭐⭐",
+        boss: "武当三道长 (章末 BOSS)", isChapterBoss: true,
         bossTeam: [
-          // Chapter BOSS: 玄苦 + 渡劫 both use 般若掌 (8, 1.2x dmg), 空见 heals.
-          // Without any damage skill the original pure [buff/heal/control] trio
-          // was unloseable in mock mode. ATKs are tuned so 般若掌 chips ~60-80
-          // HP/hit — enough to threaten squishies over ~5-7 rounds without
-          // one-shotting them like 降龙十八掌 (9) would.
-          // Suffixes (·方丈/·首座/·罗汉) disambiguate from player-owned 玄苦/空见/渡劫.
-          mkHero(9110n, Sect.Shaolin, "玄苦·方丈", 250, 58, 105, 55, 500, [8, 0, 1]),
-          mkHero(9111n, Sect.Shaolin, "空见·首座", 240, 45, 110, 50, 400, [1, 0, 2]),
-          mkHero(9112n, Sect.Shaolin, "渡劫·罗汉", 230, 40, 98, 62, 650, [2, 0, 1]),
+          // 武当 章末 BOSS: 均衡高 DEF 阵,用太极推手 (9) 叠 DEF + 梯云纵 (10) 叠 SPD,
+          // 真武破军 (11, 140% ATK) 做主输出。少林/唐门/峨眉 都不克制武当,
+          // 纯打属性对垒,考验玩家队形。
+          mkHero(9110n, Sect.Wudang, "清风·道长", 185, 95, 102, 70, 700, [9, 10, 11]),
+          mkHero(9111n, Sect.Wudang, "明月·道长", 180, 92, 108, 68, 650, [9, 10, 11]),
+          mkHero(9112n, Sect.Wudang, "张松溪·道长", 190, 90, 100, 72, 750, [9, 11, 10]),
         ],
       },
     ],
   },
   {
     id: 2,
-    name: "名剑山庄",
-    minRep: 80,
+    name: "门派恩怨",
+    minRep: 55,
     stages: [
       {
-        id: "2-1", chapter: 2, stageIdx: 1, name: "唐门前堂", diff: "普通", stars: "⭐⭐",
-        boss: "唐门弟子", isChapterBoss: false,
+        id: "2-1", chapter: 2, stageIdx: 1, name: "丐帮争粥", diff: "普通", stars: "⭐⭐",
+        boss: "丐帮舵主", isChapterBoss: false,
         bossTeam: [
-          mkHero(9201n, Sect.Tangmen, "石暴", 126, 108, 52, 86, 1500, [3, 4, 5]),
-          mkHero(9202n, Sect.Tangmen, "云雾", 120, 110, 50, 88, 1600, [4, 3, 5]),
-          mkHero(9203n, Sect.Tangmen, "小翠", 130, 106, 54, 85, 1400, [5, 3, 4]),
+          mkHero(9201n, Sect.Beggars, "刘舵主·长安", 205, 88, 82, 60, 400, [12, 13, 14]),
+          mkHero(9202n, Sect.Beggars, "周舵主·洛阳", 212, 85, 85, 58, 350, [12, 14, 13]),
+          mkHero(9203n, Sect.Beggars, "郑舵主·汴京", 208, 87, 83, 62, 380, [13, 12, 14]),
         ],
       },
       {
-        id: "2-2", chapter: 2, stageIdx: 2, name: "唐门密室", diff: "普通", stars: "⭐⭐",
-        boss: "毒药堂主", isChapterBoss: false,
+        id: "2-2", chapter: 2, stageIdx: 2, name: "华山论剑", diff: "困难", stars: "⭐⭐⭐",
+        boss: "华山剑冢三客", isChapterBoss: false,
         bossTeam: [
-          mkHero(9204n, Sect.Tangmen, "无名", 138, 114, 58, 88, 1700, [3, 5, 4]),
-          mkHero(9205n, Sect.Tangmen, "千蛛", 132, 118, 55, 92, 1800, [4, 3, 5]),
-          mkHero(9206n, Sect.Tangmen, "毒公子", 134, 113, 58, 86, 1600, [5, 3, 4]),
+          mkHero(9204n, Sect.Huashan, "岳不群·剑客", 132, 112, 56, 102, 2800, [15, 16, 17]),
+          mkHero(9205n, Sect.Huashan, "左冷禅·剑客", 138, 108, 60, 100, 2600, [17, 15, 16]),
+          mkHero(9206n, Sect.Huashan, "林震南·剑客", 128, 118, 52, 106, 3000, [15, 17, 16]),
         ],
       },
       {
-        id: "2-3", chapter: 2, stageIdx: 3, name: "唐门暗器阁", diff: "困难", stars: "⭐⭐⭐",
-        boss: "暗器阁主", isChapterBoss: false,
+        id: "2-3", chapter: 2, stageIdx: 3, name: "藏经阁守卫", diff: "困难", stars: "⭐⭐⭐",
+        boss: "三派联守(少林/唐门/武当)", isChapterBoss: false,
         bossTeam: [
-          mkHero(9207n, Sect.Tangmen, "飞燕", 144, 120, 60, 95, 1900, [3, 4, 5]),
-          mkHero(9208n, Sect.Tangmen, "霜华", 142, 122, 58, 93, 2000, [4, 3, 5]),
-          mkHero(9209n, Sect.Tangmen, "紫烟", 146, 118, 62, 92, 1800, [5, 3, 4]),
+          // 多派系混编 — 考验玩家应对不同类型敌人。包括 Shaolin (tanky)
+          // + Tangmen (burst) + Wudang (counter)。
+          mkHero(9207n, Sect.Shaolin, "守阁罗汉", 220, 92, 118, 58, 400, [0, 1, 2]),
+          mkHero(9208n, Sect.Tangmen, "暗堂巡哨", 138, 108, 55, 95, 2800, [3, 4, 5]),
+          mkHero(9209n, Sect.Wudang,  "协防道长", 195, 96, 105, 70, 800, [9, 10, 11]),
         ],
       },
       {
-        id: "2-4", chapter: 2, stageIdx: 4, name: "唐门老祖·夜鸮", diff: "BOSS", stars: "⭐⭐⭐⭐",
-        boss: "飞燕·Boss/夜鸮·老祖/柳如烟·Boss", isChapterBoss: true,
+        id: "2-4", chapter: 2, stageIdx: 4, name: "唐门暗堂", diff: "BOSS", stars: "⭐⭐⭐⭐",
+        boss: "唐门掌灯人 + 明教死士 (章末 BOSS)", isChapterBoss: true,
         bossTeam: [
-          // Tangmen damage skills (3 = 1.5x, 4 = AoE) are already lethal, so
-          // the +50% rule is applied to HP but ATK is held closer to baseline
-          // to avoid round-1 one-shots. Keeping a ~30% player loss target.
-          // Suffixes disambiguate from player-owned 飞燕/夜鸮/柳如烟.
-          mkHero(9210n, Sect.Tangmen, "飞燕·Boss", 195, 88, 60, 98, 2000, [3, 4, 5]),
-          mkHero(9211n, Sect.Tangmen, "夜鸮·老祖", 188, 95, 55, 105, 2200, [4, 3, 5]),
-          mkHero(9212n, Sect.Tangmen, "柳如烟·Boss", 203, 82, 62, 95, 1900, [5, 3, 4]),
+          // 唐门掌灯 × 2 打爆发,配一个明教死士提前预告第 3 章反派。
+          // Tangmen + Ming 的联手让毒 DOT 堆满: 毒针 (5) + 毒沙掌 (20)。
+          mkHero(9210n, Sect.Tangmen, "掌灯人·甲", 152, 116, 55, 102, 3200, [3, 4, 5]),
+          mkHero(9211n, Sect.Tangmen, "掌灯人·乙", 148, 120, 50, 104, 3400, [3, 4, 5]),
+          mkHero(9212n, Sect.Ming,    "明教·死士", 140, 110, 45, 90, 2000, [18, 19, 20]),
         ],
       },
     ],
   },
   {
     id: 3,
-    name: "华山论剑",
-    minRep: 200,
+    name: "魔教来袭",
+    minRep: 130,
     stages: [
       {
-        id: "3-1", chapter: 3, stageIdx: 1, name: "峨眉山脚", diff: "困难", stars: "⭐⭐⭐",
-        boss: "峨眉弟子", isChapterBoss: false,
+        id: "3-1", chapter: 3, stageIdx: 1, name: "光明顶前哨", diff: "困难", stars: "⭐⭐⭐",
+        boss: "明教·铁冠道人", isChapterBoss: false,
         bossTeam: [
-          mkHero(9301n, Sect.Emei, "静玄", 162, 84, 72, 82, 900, [6, 7, 8]),
-          mkHero(9302n, Sect.Emei, "静虚", 156, 86, 70, 84, 850, [8, 6, 7]),
-          mkHero(9303n, Sect.Emei, "静心", 168, 82, 74, 80, 950, [6, 8, 7]),
+          mkHero(9301n, Sect.Ming, "铁冠·五散", 158, 106, 62, 86, 1900, [18, 19, 20]),
+          mkHero(9302n, Sect.Ming, "冷谦·五散", 152, 110, 58, 88, 2100, [18, 19, 20]),
+          mkHero(9303n, Sect.Ming, "彭莹玉·五散", 148, 114, 54, 90, 2300, [18, 19, 20]),
         ],
       },
       {
-        id: "3-2", chapter: 3, stageIdx: 2, name: "峨眉金顶", diff: "困难", stars: "⭐⭐⭐",
-        boss: "峨眉长老", isChapterBoss: false,
+        id: "3-2", chapter: 3, stageIdx: 2, name: "四大护教法王", diff: "地狱", stars: "⭐⭐⭐⭐",
+        boss: "紫衫 + 金毛 + 华山客", isChapterBoss: false,
         bossTeam: [
-          mkHero(9304n, Sect.Emei, "静因", 168, 90, 75, 85, 1000, [6, 7, 8]),
-          mkHero(9305n, Sect.Emei, "静寂", 166, 92, 73, 86, 1100, [8, 6, 7]),
-          mkHero(9306n, Sect.Emei, "静音", 170, 88, 76, 83, 1050, [6, 8, 7]),
+          // 紫衫龙王 (Ming, 高 HP 爆发) + 金毛狮王 (Ming, 顶端输出) + 华山剑客
+          // 做加成 — 考验队伍的 burst 抗性。
+          mkHero(9304n, Sect.Ming,    "紫衫·法王",   170, 122, 68, 94, 2900, [18, 19, 20]),
+          mkHero(9305n, Sect.Ming,    "金毛·法王",   175, 118, 72, 92, 2600, [18, 19, 20]),
+          mkHero(9306n, Sect.Huashan, "剑魔·同盟",   142, 120, 56, 106, 3100, [15, 16, 17]),
         ],
       },
       {
-        id: "3-3", chapter: 3, stageIdx: 3, name: "华山剑阵", diff: "地狱", stars: "⭐⭐⭐⭐",
-        boss: "华山剑客", isChapterBoss: false,
+        id: "3-3", chapter: 3, stageIdx: 3, name: "圣女劝降", diff: "地狱", stars: "⭐⭐⭐⭐",
+        boss: "明教圣女 + 丐帮长老 + 峨眉宿敌", isChapterBoss: false,
         bossTeam: [
-          mkHero(9307n, Sect.Emei, "风陵", 174, 96, 78, 90, 1200, [6, 8, 7]),
-          mkHero(9308n, Sect.Emei, "紫霞", 178, 98, 76, 92, 1300, [8, 6, 7]),
-          mkHero(9309n, Sect.Emei, "青霜", 170, 101, 75, 95, 1400, [6, 8, 7]),
+          // 圣女是主C, 丐帮长老扛线, 峨眉宿敌治疗 — 持久战, 不是速攻能赢的。
+          mkHero(9307n, Sect.Ming,    "明教·圣女",   182, 128, 72, 100, 3100, [18, 19, 20]),
+          mkHero(9308n, Sect.Beggars, "丐帮·长老",   225, 102, 96, 66, 550, [12, 13, 14]),
+          mkHero(9309n, Sect.Emei,    "峨眉·宿敌",   152, 88, 72, 88, 1600, [6, 7, 8]),
         ],
       },
       {
-        id: "3-4", chapter: 3, stageIdx: 4, name: "华山之巅·灭绝", diff: "BOSS", stars: "⭐⭐⭐⭐⭐",
-        boss: "灭绝·掌门/周芷若·Boss/风陵·长老 (BOSS签名)", isChapterBoss: true,
+        id: "3-4", chapter: 3, stageIdx: 4, name: "教主决战", diff: "BOSS", stars: "⭐⭐⭐⭐⭐",
+        boss: "明教教主 + 护法 + 叛变武当 (章末 BOSS)", isChapterBoss: true,
         bossTeam: [
-          // Emei BOSS wields 九阳神功 (9 = 2.2x), 乾坤大挪移 (11 = AoE) and
-          // 般若掌 (8). ATK held below the pool average because 9/11 would
-          // otherwise one-shot through mid-game player defence.
-          // Suffixes disambiguate from player-owned 灭绝/周芷若/风陵.
-          mkHero(9310n, Sect.Emei, "灭绝·掌门", 240, 72, 80, 88, 1800, [8, 10, 9]),
-          mkHero(9311n, Sect.Emei, "周芷若·Boss", 225, 68, 75, 95, 2000, [11, 8, 7]),
-          mkHero(9312n, Sect.Emei, "风陵·长老", 233, 60, 82, 90, 1600, [9, 11, 6]),
+          // 明教教主持乾坤大挪移 (19, +50% crit) 爆发, 护法 Ming + 叛变武当
+          // 道长 (counter-buff) 做坦。全场最硬,声望门槛 240。
+          mkHero(9310n, Sect.Ming,    "明教·教主",   225, 142, 82, 108, 3600, [18, 19, 20]),
+          mkHero(9311n, Sect.Ming,    "护教·法王",   218, 136, 78, 110, 3400, [18, 19, 20]),
+          mkHero(9312n, Sect.Wudang,  "叛变·道长",   202, 120, 112, 86, 1200, [9, 10, 11]),
         ],
       },
     ],
@@ -879,7 +926,7 @@ async function ensurePlayerAddress(state: GameState): Promise<`0x${string}`> {
   if (state.playerAddress && /^0x[0-9a-fA-F]{40}$/.test(state.playerAddress)) {
     return state.playerAddress;
   }
-  const envAddr = process.env.WUXIA_PLAYER_ADDRESS;
+  const envAddr = process.env.XIAKE_PLAYER_ADDRESS;
   if (envAddr && /^0x[0-9a-fA-F]{40}$/.test(envAddr)) {
     state.playerAddress = envAddr as `0x${string}`;
     saveState(state);
@@ -887,8 +934,8 @@ async function ensurePlayerAddress(state: GameState): Promise<`0x${string}`> {
   }
   const { createHash } = await import("node:crypto");
   const { createWalletAccount, getWalletAccount } = await import("./onchainos/wallet.js");
-  const accountId = process.env.WUXIA_PLAYER_ID
-    ?? `wuxia-cli-${createHash("sha256").update(process.env.USERPROFILE ?? process.env.HOME ?? "local").digest("hex").slice(0, 16)}`;
+  const accountId = process.env.XIAKE_PLAYER_ID
+    ?? `xiake-cli-${createHash("sha256").update(process.env.USERPROFILE ?? process.env.HOME ?? "local").digest("hex").slice(0, 16)}`;
   const existing = await getWalletAccount(accountId).catch(() => null);
   const account = existing ?? await createWalletAccount({ accountId });
   state.playerAddress = account.address as `0x${string}`;
@@ -969,6 +1016,9 @@ function checkAchievements(state: GameState, ctx: AchievementCtx = {}): string[]
   const sects = new Set(state.heroes.map(h => h.sect));
   if (sects.size >= 3) setAchievement(state, "three_sects", true, Math.min(3, sects.size), unlocked);
   else setAchievement(state, "three_sects", false, sects.size, unlocked);
+  // seven_sects: full 7-sect collection
+  if (sects.size >= 7) setAchievement(state, "seven_sects", true, 1, unlocked);
+  else setAchievement(state, "seven_sects", false, sects.size, unlocked);
 
   // first_kill: any KILL flag seen in this battle
   if (ctx.events && ctx.events.some(e => hasFlag(e.flags, FLAG_KILL))) {
@@ -1057,7 +1107,7 @@ function cmdInit(): string {
   const lines: string[] = [];
   lines.push(`🔗 模式: ${mode}`);
   lines.push("╔══════════════════════════════════════════════════╗");
-  lines.push("║          ⚔️  江 湖 大 乱 斗  ⚔️                ║");
+  lines.push("║          ⚔️  侠  客  擂  台  ⚔️                ║");
   lines.push("║     The first game built for AI, not humans     ║");
   lines.push("╚══════════════════════════════════════════════════╝");
   if (seasonRoll.note) {
@@ -1078,7 +1128,7 @@ function cmdInit(): string {
     lines.push("─".repeat(50));
     for (const h of state.heroes) {
       const sect = SECT_NAMES[h.sect];
-      const icon = h.sect === Sect.Shaolin ? "🥋" : h.sect === Sect.Tangmen ? "🗡️" : "⛩️";
+      const icon = SECT_ICON[h.sect] ?? "⚔️";
       const star = activeIds.has(h.tokenId.toString()) ? " ⭐" : "";
       const wound = isWounded(state, h.tokenId, now) ? " ⚕️" : "";
       lines.push(`  ${icon} ${sect}·${h.name} #${h.tokenId}  HP${h.hp} ATK${h.atk} DEF${h.def} SPD${h.spd} CRT${(h.crit/100).toFixed(1)}%${star}${wound}`);
@@ -1365,7 +1415,7 @@ async function cmdMint(
   lines.push("═".repeat(50));
   for (const h of newHeroes) {
     const sect = SECT_NAMES[h.sect];
-    const icon = h.sect === Sect.Shaolin ? "🥋" : h.sect === Sect.Tangmen ? "🗡️" : "⛩️";
+    const icon = SECT_ICON[h.sect] ?? "⚔️";
     const skills = h.skillIds.map(id => SKILL_NAMES[id] ?? `技能#${id}`).join(" / ");
     lines.push("");
     lines.push(`  ${icon} ${sect}·${h.name}  #${h.tokenId}`);
@@ -1450,7 +1500,7 @@ function cmdHeroes(): string {
   let anyWounded = false;
   for (const h of state.heroes) {
     const sect = SECT_NAMES[h.sect];
-    const icon = h.sect === Sect.Shaolin ? "🥋" : h.sect === Sect.Tangmen ? "🗡️" : "⛩️";
+    const icon = SECT_ICON[h.sect] ?? "⚔️";
     const skills = h.skillIds.map(id => SKILL_NAMES[id] ?? `#${id}`).join(" / ");
     const star = activeIds.has(h.tokenId.toString()) ? " ⭐" : "";
     const wounded = isWounded(state, h.tokenId, now);
@@ -1653,7 +1703,7 @@ function renderBattleReport(opts: RenderBattleOpts): string {
     lines.push("━".repeat(50));
     for (const l of opts.rewardLines) lines.push(l);
     lines.push("");
-    lines.push(`(lite 模式 · 想看细节请 WUXIA_REPORT_MODE=full)`);
+    lines.push(`(lite 模式 · 想看细节请 XIAKE_REPORT_MODE=full)`);
     return lines.join("\n");
   }
 
@@ -1978,7 +2028,7 @@ function deriveMockOpponent(seed: string, index: number): { address: `0x${string
 function listMockArena(limit: number): Array<{ address: `0x${string}`; power: number; team: Hero[] }> {
   const n = Math.max(1, Math.min(50, limit));
   const out: Array<{ address: `0x${string}`; power: number; team: Hero[] }> = [];
-  for (let i = 0; i < n; i++) out.push(deriveMockOpponent("wuxia-mock-arena-v1", i));
+  for (let i = 0; i < n; i++) out.push(deriveMockOpponent("xiake-mock-arena-v1", i));
   out.sort((a, b) => b.power - a.power);
   return out;
 }
@@ -2029,7 +2079,7 @@ async function cmdSetDefense(args: string[]): Promise<string> {
   lines.push("🛡️ 防守阵容已锁定");
   lines.push("─".repeat(50));
   for (const h of picked) {
-    const icon = h.sect === Sect.Shaolin ? "🥋" : h.sect === Sect.Tangmen ? "🗡️" : "⛩️";
+    const icon = SECT_ICON[h.sect] ?? "⚔️";
     lines.push(`  ${icon} ${SECT_NAMES[h.sect]}·${h.name} #${h.tokenId}  HP${h.hp} ATK${h.atk} DEF${h.def} SPD${h.spd}`);
   }
 
@@ -2664,7 +2714,7 @@ async function cmdArena(bossSlug?: string): Promise<string> {
     return [
       `🔗 模式: onchain`,
       `🏯 名人擂台「${boss.title}」— onchain 分支尚未接入 (由 onchain-eng 负责)。`,
-      `请切换到 mock 模式体验: WUXIA_MODE=mock`,
+      `请切换到 mock 模式体验: XIAKE_MODE=mock`,
     ].join("\n");
   }
 
@@ -2754,6 +2804,7 @@ function generateHeroes(
   // Sect distribution — favour under-represented sects for diversity across mint calls.
   const sectCounts: Record<Sect, number> = {
     [Sect.Shaolin]: 0, [Sect.Tangmen]: 0, [Sect.Emei]: 0,
+    [Sect.Wudang]: 0, [Sect.Beggars]: 0, [Sect.Huashan]: 0, [Sect.Ming]: 0,
   };
   for (const h of existingHeroes) sectCounts[h.sect] = (sectCounts[h.sect] ?? 0) + 1;
 
@@ -2766,6 +2817,9 @@ function generateHeroes(
   // early stages trivial due to lack of burst/healing variety.
   // Skipped when the caller demands an explicit派系 via `forceSectOverride`
   // (Wave 2 · 30 抽派系保底).
+  // First-mint genesis keeps the classic Shaolin/Tangmen/Emei triplet because
+  // the story tutorial (Chapter 1) is built around those three. Beyond the
+  // genesis 3 free pulls, the full 7-sect pool opens up.
   const forcedSects: Sect[] | null =
     forceSectOverride === null && existingHeroes.length === 0 && need === 3
       ? (() => {
@@ -2790,7 +2844,10 @@ function generateHeroes(
       // diversity stays high even when roster is already lopsided.
       const effCounts: Record<Sect, number> = { ...sectCounts };
       for (const ps of pickedSects) effCounts[ps] += 5; // stronger penalty within the same call
-      const sectList: Sect[] = [Sect.Shaolin, Sect.Tangmen, Sect.Emei];
+      const sectList: Sect[] = [
+        Sect.Shaolin, Sect.Tangmen, Sect.Emei,
+        Sect.Wudang, Sect.Beggars, Sect.Huashan, Sect.Ming,
+      ];
       const maxC = Math.max(...sectList.map(se => effCounts[se]));
       const weights = sectList.map(se => ({
         sect: se,
@@ -3703,7 +3760,7 @@ function cmdReplay(args: string[]): string {
     result,
     mode: "lite",
     rewardLines,
-    closingHint: "📜 复盘模式 (lite) · 只显示结局 + MVP,想看细节请 WUXIA_REPORT_MODE=full 重打",
+    closingHint: "📜 复盘模式 (lite) · 只显示结局 + MVP,想看细节请 XIAKE_REPORT_MODE=full 重打",
   });
 }
 
@@ -3736,6 +3793,96 @@ function cmdSeason(): string {
   lines.push("⚠️ 赛季结束后声望清零 50%,前 100 名获保底重置卡");
   lines.push("(赛季榜单 top100 将由 onchain-eng 在 P2 接合约读取)");
   if (roll.note) lines.push(roll.note);
+  return lines.join("\n");
+}
+
+// ── Sect lore ───────────────────────────────────────────────────────────────
+
+const SECT_LORE: Record<Sect, { name: string; role: string; home: string; bio: string; signature: string }> = {
+  [Sect.Shaolin]: {
+    name: "少林", role: "坦克·治疗", home: "嵩山少林寺",
+    bio: "禅宗祖庭,武林泰山北斗。金钟罩铁布衫护体,易筋经养气调息。讲究「以武入禅」,出手先劝人回头,劝不动才抡起禅杖。",
+    signature: "金钟罩 · 易筋经 · 狮子吼",
+  },
+  [Sect.Tangmen]: {
+    name: "唐门", role: "刺客·爆发", home: "四川唐家堡",
+    bio: "暗器与毒药的宗师世家。家规森严,暗器千变,毒药万计。远程秒杀最可怕,近战反而是他们的短板。",
+    signature: "穿心刺 · 暗器急雨 · 毒针",
+  },
+  [Sect.Emei]: {
+    name: "峨眉", role: "辅助·净化", home: "四川峨眉山",
+    bio: "佛道合一的女子门派。慈航普渡救人,净心咒洗去邪魔。战场上的最后防线,也是最温柔的后盾。",
+    signature: "慈航普渡 · 净心咒 · 般若掌",
+  },
+  [Sect.Wudang]: {
+    name: "武当", role: "均衡·反制", home: "湖北武当山",
+    bio: "张三丰开派,太极两仪。讲究「以柔克刚、后发制人」,打的不是比你快,而是比你稳。你一出招,他就知道你下一招。",
+    signature: "太极推手 · 梯云纵 · 真武破军",
+  },
+  [Sect.Beggars]: {
+    name: "丐帮", role: "控场·buff", home: "流浪江湖,遍地是家",
+    bio: "天下第一大帮。没地盘、没金库、靠一根打狗棒闯天下。人多势众,醉八仙越喝越勇,降龙十八掌一出地动山摇。",
+    signature: "降龙十八掌 · 打狗棒法 · 醉八仙",
+  },
+  [Sect.Huashan]: {
+    name: "华山", role: "剑术·高暴击", home: "陕西华山",
+    bio: "剑术一脉正宗,分气宗剑宗之争。独孤九剑「有进无退」——打架只看谁剑快,谁破绽先暴露给谁。华山论剑非虚名。",
+    signature: "独孤九剑 · 紫霞神功 · 华山群剑",
+  },
+  [Sect.Ming]: {
+    name: "明教", role: "毒术·破防", home: "昆仑光明顶",
+    bio: "源自波斯,传入中原已历三百年。教众素服白衣,信奉光明战胜黑暗。江湖视其为魔教,教中人视江湖为腐朽。乾坤大挪移一出,旧秩序灰飞烟灭。",
+    signature: "圣火令 · 乾坤大挪移 · 毒沙掌",
+  },
+};
+
+function _parseSectArg(arg: string | undefined): Sect | null {
+  if (arg === undefined) return null;
+  const n = Number(arg);
+  if (Number.isInteger(n) && n >= 0 && n < SECT_CYCLE.length) return n as Sect;
+  const map: Record<string, Sect> = {
+    "少林": Sect.Shaolin, "shaolin": Sect.Shaolin,
+    "唐门": Sect.Tangmen, "tangmen": Sect.Tangmen,
+    "峨眉": Sect.Emei, "emei": Sect.Emei,
+    "武当": Sect.Wudang, "wudang": Sect.Wudang,
+    "丐帮": Sect.Beggars, "beggars": Sect.Beggars,
+    "华山": Sect.Huashan, "huashan": Sect.Huashan,
+    "明教": Sect.Ming, "ming": Sect.Ming,
+  };
+  return map[arg.toLowerCase()] ?? map[arg] ?? null;
+}
+
+function cmdLore(arg: string | undefined): string {
+  const lines: string[] = [];
+  const sect = _parseSectArg(arg);
+  if (sect === null) {
+    // List all 7 sects with one-line blurbs.
+    lines.push("⛩️  七大门派");
+    lines.push("─".repeat(50));
+    for (const s of SECT_CYCLE) {
+      const L = SECT_LORE[s];
+      lines.push(`  ${SECT_ICON[s]} ${L.name} · ${L.role}`);
+      lines.push(`    ${L.home}`);
+    }
+    lines.push("");
+    lines.push("用 `lore <门派名>` 查看详细背景, 例如: lore 武当");
+    return lines.join("\n");
+  }
+  const L = SECT_LORE[sect];
+  lines.push(`${SECT_ICON[sect]}  ${L.name}  ·  ${L.role}`);
+  lines.push("─".repeat(50));
+  lines.push(`门派地盘: ${L.home}`);
+  lines.push(`招牌武学: ${L.signature}`);
+  lines.push("");
+  lines.push(L.bio);
+  // Affinity hints
+  const cycle = SECT_CYCLE;
+  const idx = cycle.indexOf(sect);
+  const strong = cycle[(idx + 1) % cycle.length];
+  const weak = cycle[(idx + cycle.length - 1) % cycle.length];
+  lines.push("");
+  lines.push(`⚔️ 克 ${SECT_NAMES[strong]} (+15% 伤害)`);
+  lines.push(`🛡️ 被 ${SECT_NAMES[weak]} 克 (-15% 受伤)`);
   return lines.join("\n");
 }
 
@@ -3778,6 +3925,7 @@ async function main(): Promise<void> {
       case "achievements": console.log(cmdAchievements()); break;
       case "replay":  console.log(cmdReplay(args)); break;
       case "season":  console.log(cmdSeason()); break;
+      case "lore":    console.log(cmdLore(args[0])); break;
       case "admin":   {
         const subcmd = args[0];
         if (subcmd === "withdraw") console.log(await cmdAdminWithdraw(args[1], args[2]));
@@ -3813,6 +3961,7 @@ async function main(): Promise<void> {
         console.log("  achievements                  — 查看成就列表 (10 项)");
         console.log("  replay [index]                — 战报复盘,无参数列最近 10 场");
         console.log("  season                        — 查看赛季信息 (14 天一季)");
+        console.log("  lore [sect]                   — 查看门派背景 (7 派,参数: 少林/唐门/峨眉/武当/丐帮/华山/明教 或 0-6)");
         console.log("  admin withdraw <amt> [tgt]    — 调度提款 (2-step, 48h 时间锁)");
         console.log("  admin execute <amt>           — 时间锁到期后执行提款");
         console.log("  admin status                  — 查看待执行的 schedule");

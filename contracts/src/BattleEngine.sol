@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Types} from "./Types.sol";
 import {SkillBook} from "./SkillRegistry.sol";
+import {SectAffinity} from "./SectAffinity.sol";
 
 /// @title BattleEngine
 /// @notice Pure, memory-only 3v3 turn-based combat simulator.
@@ -58,9 +59,12 @@ library BattleEngine {
     ) internal pure returns (uint8 winner, Types.BattleEvent[] memory events) {
         HeroState[TOTAL_SLOTS] memory s = _initStates(a, b);
 
-        // Preallocate max possible events: 30 rounds × 6 actors × up to 3 sub-events
-        // (dot tick + action + kill). We grow into a fixed buffer then shrink at the end.
-        Types.BattleEvent[] memory buf = new Types.BattleEvent[](MAX_ROUNDS * TOTAL_SLOTS * 4);
+        // Preallocate max possible events: 30 rounds × 6 actors × up to 4 sub-events
+        // (dot tick + action + kill). Cast to uint256 first — MAX_ROUNDS and
+        // TOTAL_SLOTS are uint8 and 30*6*4 = 720 overflows uint8 (panic 0x11).
+        Types.BattleEvent[] memory buf = new Types.BattleEvent[](
+            uint256(MAX_ROUNDS) * uint256(TOTAL_SLOTS) * 4
+        );
         uint256 n = 0;
 
         // Stable turn order (desc SPD, tie-break by tokenId asc). Dead heroes are skipped.
@@ -78,39 +82,14 @@ library BattleEngine {
                 return (winner, events);
             }
 
-            // 3) Each hero (in turn order) acts
-            for (uint8 i = 0; i < TOTAL_SLOTS; i++) {
-                uint8 idx = order[i];
-                if (!s[idx].alive) continue;
-
-                if (s[idx].controlRoundsLeft > 0) {
-                    s[idx].controlRoundsLeft--;
-                    // record a "miss" event to show the hero was silenced
-                    buf[n++] = Types.BattleEvent({
-                        round: round,
-                        actorIdx: idx,
-                        skillId: 0,
-                        targetIdx: idx,
-                        hpDelta: 0,
-                        flags: Types.FLAG_MISS | Types.FLAG_CONTROL
-                    });
-                    continue;
-                }
-
-                // Pick a skill pseudo-randomly from the hero's 3-skill kit
-                uint256 rand = uint256(keccak256(abi.encode(seed, round, idx, i)));
-                uint8 skillId = s[idx].skillIds[rand % s[idx].skillIds.length];
-                Types.Skill memory sk = SkillBook.get(skillId);
-
-                n = _applySkill(s, idx, skillId, sk, rand, round, buf, n);
-
-                // After each action, check for global termination to cut short
-                (bool done, uint8 w2) = _checkWinner(s);
-                if (done) {
-                    winner = w2;
-                    events = _truncate(buf, n);
-                    return (winner, events);
-                }
+            // 3) Each hero (in turn order) acts. Loop body is hoisted into
+            //    `_runRound` to keep the `simulate` stack frame under the
+            //    legacy-codegen 16-local limit.
+            bool done;
+            (n, done, winner) = _runRound(s, order, seed, round, buf, n);
+            if (done) {
+                events = _truncate(buf, n);
+                return (winner, events);
             }
 
             // 4) End-of-round: decay buffs
@@ -125,6 +104,60 @@ library BattleEngine {
         else                winner = 2;
 
         events = _truncate(buf, n);
+    }
+
+    /// @dev One round of actions. Extracted from `simulate` so the outer
+    ///      stack frame does not exceed the legacy codegen 16-local cap.
+    function _runRound(
+        HeroState[TOTAL_SLOTS] memory s,
+        uint8[TOTAL_SLOTS] memory order,
+        uint256 seed,
+        uint8 round,
+        Types.BattleEvent[] memory buf,
+        uint256 n
+    ) private pure returns (uint256, bool done, uint8 winner) {
+        for (uint8 i = 0; i < TOTAL_SLOTS; i++) {
+            uint8 idx = order[i];
+            if (!s[idx].alive) continue;
+
+            if (s[idx].controlRoundsLeft > 0) {
+                s[idx].controlRoundsLeft--;
+                buf[n++] = Types.BattleEvent({
+                    round: round,
+                    actorIdx: idx,
+                    skillId: 0,
+                    targetIdx: idx,
+                    hpDelta: 0,
+                    flags: Types.FLAG_MISS | Types.FLAG_CONTROL
+                });
+                continue;
+            }
+
+            n = _actorTurn(s, idx, seed, round, i, buf, n);
+
+            (bool ended, uint8 w) = _checkWinner(s);
+            if (ended) {
+                return (n, true, w);
+            }
+        }
+        return (n, false, 0);
+    }
+
+    /// @dev Pick a skill for `idx` and apply it. Dedicated helper so the
+    ///      skillId / Skill / rand locals live in their own stack frame.
+    function _actorTurn(
+        HeroState[TOTAL_SLOTS] memory s,
+        uint8 idx,
+        uint256 seed,
+        uint8 round,
+        uint8 turnIdx,
+        Types.BattleEvent[] memory buf,
+        uint256 n
+    ) private pure returns (uint256) {
+        uint256 rand = uint256(keccak256(abi.encode(seed, round, idx, turnIdx)));
+        uint8 skillId = s[idx].skillIds[rand % s[idx].skillIds.length];
+        Types.Skill memory sk = SkillBook.get(skillId);
+        return _applySkill(s, idx, skillId, sk, rand, round, buf, n);
     }
 
     // ---------------------------------------------------------------------
@@ -365,6 +398,16 @@ library BattleEngine {
             s[target].defBonusBps,
             isCrit
         );
+
+        // Apply sect-affinity (7-ring rock-paper-scissors). Deterministic —
+        // does not consume rand, so replays produce the same result.
+        uint16 aff = SectAffinity.multiplierBps(s[actor].sect, s[target].sect);
+        if (aff != 10000) {
+            uint256 scaled = (uint256(dmg) * aff) / 10000;
+            if (scaled < 1)     scaled = 1;
+            if (scaled > 32767) scaled = 32767;
+            dmg = uint16(scaled);
+        }
 
         s[target].hp -= int32(uint32(dmg));
         uint8 flags = isCrit ? Types.FLAG_CRIT : 0;

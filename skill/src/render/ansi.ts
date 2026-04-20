@@ -104,7 +104,7 @@ export function stripAnsi(s: string): string {
 /**
  * Visible-width of `s`, treating East Asian wide characters (CJK ideographs,
  * hiragana, katakana, full-width punctuation) as 2 cells. Good enough for the
- * Jianghu sect / hero names which are all CJK.
+ * Xiake sect / hero names which are all CJK.
  */
 export function visibleWidth(s: string): number {
   const plain = stripAnsi(s);

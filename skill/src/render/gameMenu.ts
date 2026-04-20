@@ -3,7 +3,7 @@
 // always knows what to do next.
 
 import { bold, faint, status, crit, heal } from "./ansi.js";
-import { SECT_NAMES, type Hero, Sect } from "../types.js";
+import { SECT_NAMES, SECT_ICON, type Hero } from "../types.js";
 
 // ── Main game menu (shown after init or when player asks "what can I do") ───
 
@@ -41,7 +41,7 @@ export function renderMainMenu(state: GameMenuState): string {
     lines.push("");
     lines.push(status("👉 下一步: 招募你的第一批侠客"));
     lines.push("");
-    lines.push("  请说: " + bold('"招募侠客"') + " 或调用 " + faint("wuxia_mint_hero"));
+    lines.push("  请说: " + bold('"招募侠客"') + " 或调用 " + faint("xiake_mint_hero"));
     lines.push("");
   } else {
     // Returning player
@@ -53,7 +53,7 @@ export function renderMainMenu(state: GameMenuState): string {
     // Show team preview
     for (const h of state.heroes.slice(0, 3)) {
       const sect = SECT_NAMES[h.sect];
-      const icon = h.sect === Sect.Shaolin ? "🥋" : h.sect === Sect.Tangmen ? "🗡️" : "⛩️";
+      const icon = SECT_ICON[h.sect] ?? "⚔️";
       lines.push(`  ${icon} ${sect}·${h.name}  HP${h.hp} ATK${h.atk} SPD${h.spd}`);
     }
 
@@ -130,7 +130,7 @@ export function renderStageList(): string {
   }
 
   lines.push("");
-  lines.push(faint("说 \"闯第1关\" 或调用 wuxia_start_pve(stageId=1) 开始挑战。"));
+  lines.push(faint("说 \"闯第1关\" 或调用 xiake_start_pve(stageId=1) 开始挑战。"));
   return lines.join("\n");
 }
 
@@ -144,7 +144,7 @@ export function renderCharacterCreation(heroes: Hero[]): string {
 
   for (const hero of heroes) {
     const sect = SECT_NAMES[hero.sect];
-    const icon = hero.sect === Sect.Shaolin ? "🥋" : hero.sect === Sect.Tangmen ? "🗡️" : "⛩️";
+    const icon = SECT_ICON[hero.sect] ?? "⚔️";
     lines.push("");
     lines.push(bold(`  ${icon} ${sect}·${hero.name}  #${hero.tokenId}`));
     lines.push(`     ❤️  HP ${hero.hp}  |  ⚔️  ATK ${hero.atk}  |  🛡️  DEF ${hero.def}`);

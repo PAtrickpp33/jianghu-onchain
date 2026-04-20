@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// MCP server entry for wuxia-skill (《江湖大乱斗》).
+// MCP server entry for xiake-skill (《侠客擂台》).
 // - Registers the 9 tools (see docs/TECHNICAL_DESIGN.md §4.2)
 // - Speaks JSON-RPC over stdio (@modelcontextprotocol/sdk Server)
 // - Each tool handler returns Markdown; errors are wrapped to isError=true.
@@ -48,7 +48,7 @@ const HANDLERS: Record<string, ToolModule["handler"]> = Object.fromEntries(
 async function main(): Promise<void> {
   const server = new Server(
     {
-      name: "wuxia-skill",
+      name: "xiake-skill",
       version: "0.1.0",
     },
     {
@@ -77,10 +77,10 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // stderr is fine for operational logs — stdout is reserved for JSON-RPC.
-  process.stderr.write("[wuxia-skill] MCP server ready on stdio\n");
+  process.stderr.write("[xiake-skill] MCP server ready on stdio\n");
 }
 
 main().catch((e) => {
-  process.stderr.write(`[wuxia-skill] fatal: ${e instanceof Error ? e.stack : String(e)}\n`);
+  process.stderr.write(`[xiake-skill] fatal: ${e instanceof Error ? e.stack : String(e)}\n`);
   process.exit(1);
 });

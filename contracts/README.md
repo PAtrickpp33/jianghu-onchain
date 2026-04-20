@@ -1,6 +1,6 @@
-# Jianghu Contracts
+# Xiake Contracts
 
-On-chain 3v3 wuxia battle contracts for the `wuxia-skill` MCP game.
+On-chain 3v3 wuxia battle contracts for the `xiake-skill` MCP game (侠客擂台).
 Target chain: **Base Sepolia** (chainId 84532). Solidity **0.8.24** / **cancun** / optimizer 200.
 
 ## Layout

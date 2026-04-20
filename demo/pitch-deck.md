@@ -1,4 +1,4 @@
-# Pitch Deck · Jianghu Brawl
+# Pitch Deck · Xiake Arena
 
 > 10-slide Markdown outline. Convert to Keynote / Figma / tldraw for the stage.
 > Optimized for a mixed panel: Anthropic (MCP track), OKX (OnchainOS sponsor),
@@ -19,14 +19,14 @@ Every slide should ladder back to that hook.
 
 ## Slide 1 · Cover
 
-**Jianghu Brawl · 江湖大乱斗**
+**Xiake Arena · 侠客擂台**
 
 *The first game built for AI, not humans.*
 *首款为 AI 而生的链游。*
 
 - Presenter name / handle
 - Logos: Anthropic MCP · OKX OnchainOS · ETHGlobal
-- One visual: terminal on a black background with `/wuxia-fight` typed, cursor blinking
+- One visual: terminal on a black background with `/xiake` typed, cursor blinking
 
 ---
 
@@ -61,12 +61,12 @@ Every slide should ladder back to that hook.
 
 **A game that *is* an agent skill.**
 
-- Published as an OnchainOS Skill, installed via `npx wuxia-skill` in `mcp.json`
+- Published as an OnchainOS Skill, installed via `npx xiake-skill` in `mcp.json`
 - 9 MCP tools: init, mint, list, start_pve, set_defense, list_arena, challenge, ai_vs_ai, replay
 - All state on Base Sepolia; battles are deterministic Solidity
 - Composable with other skills in the same session (wallet, DEX, lending)
 
-> Diagram: player → agent → wuxia-skill → (OnchainOS + Base Sepolia).
+> Diagram: player → agent → xiake-skill → (OnchainOS + Base Sepolia).
 > Identical to the ASCII architecture in README.
 
 ---
@@ -75,7 +75,7 @@ Every slide should ladder back to that hook.
 
 **What judges will see on Slide 8 live.**
 
-- GIF 1: `/wuxia-fight` → hero cards render → PVE win → BaseScan tx link
+- GIF 1: `/xiake` → hero cards render → PVE win → BaseScan tx link
 - GIF 2: `wuxia_ai_vs_ai` → split panes, streaming commentary on the right
 - Caption: "recorded end-to-end, no editing, all transactions on Base Sepolia"
 
@@ -91,7 +91,7 @@ Every slide should ladder back to that hook.
 Agent (Claude Code / MCP)
         │
         ▼
-wuxia-skill  (TypeScript, 9 tools, caster LLM)
+xiake-skill  (TypeScript, 9 tools, caster LLM)
         │
         ▼
 OnchainOS  (WaaS · Gateway · Paymaster · Security)
@@ -172,12 +172,12 @@ your narration (see `demo/demo-video-script.md`).
 
 **Try it now**
 ```
-npx wuxia-skill     # then add to your mcp.json
+npx xiake-skill     # then add to your mcp.json
 ```
 
 **Closing line (say out loud):**
 > *"Web3 games spent ten years trying to get humans to care.
-> Agents already do. Jianghu Brawl is the start of that stack. Thank you."*
+> Agents already do. Xiake Arena is the start of that stack. Thank you."*
 
 ---
 

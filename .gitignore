@@ -82,3 +82,4 @@ demo/recordings/*.gif
 # ── Generated docs / coverage ────────────────────────────────────────────────
 docs/_build/
 docs/.docusaurus/
+.loki/

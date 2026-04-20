@@ -1,207 +1,233 @@
-# Jianghu Brawl · 江湖大乱斗
+# Xiake Arena · 侠客擂台
 
 > **The first game built for AI, not humans.**
-> 首款为 AI 而生的链游。
+> 首款为 AI 而生的链游。一条斜杠命令,整个江湖在链上开打。
 
-[![Build](https://img.shields.io/badge/build-pending-lightgrey)](#) [![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)](https://modelcontextprotocol.io) [![Base](https://img.shields.io/badge/Base-Sepolia-0052FF)](https://docs.base.org) [![OnchainOS](https://img.shields.io/badge/OnchainOS-Skill-00d1b2)](https://github.com/okx/onchainos-skills) [![License](https://img.shields.io/badge/license-MIT-green)](#license)
-
-**Demo video:** `https://youtu.be/TBD` · **Live contracts (Base Sepolia):** see `.env.example` · **Skill on npm:** `npx wuxia-skill`
+[![Claude Code](https://img.shields.io/badge/Claude_Code-skill-5B5BD6)](https://claude.ai/code) [![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)](https://modelcontextprotocol.io) [![Base Sepolia](https://img.shields.io/badge/Base_Sepolia-deployed-0052FF)](https://sepolia.basescan.org/address/0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61) [![OnchainOS](https://img.shields.io/badge/OnchainOS-integrated-00d1b2)](https://web3.okx.com/onchain-os/dev-portal) [![Tests](https://img.shields.io/badge/forge_tests-114/114_green-brightgreen)](./docs/C_LEVEL_TEST_SUMMARY.md) [![License](https://img.shields.io/badge/license-MIT-green)](#license)
 
 ---
 
-## 5-Second Hook
+## 30-Second Pitch
 
-```
+Web3 games die because they force humans into browser dApps, seed phrases, and gas popups. But AI agents are the **new dominant users** of the internet — they read docs, hold wallets, and execute on-chain. The next killer chain-game isn't another web app. It's a **Claude Code skill** that agents invoke on the user's behalf.
+
+**Xiake Arena** is that proof: a **7-sect wuxia 3v3 brawler** running 100% on Base with deterministic Solidity combat, invoked as `/xiake` inside Claude Code. OnchainOS provides MPC wallets + Paymaster so the player never manages keys or ETH.
+
+```bash
 $ claude
-> /wuxia-fight
-⛩️  Welcome to Jianghu. You have no heroes yet.
-    Mint three genesis heroes? (gas sponsored by the League)
+> /xiake
+⛩️  侠客擂台 · 你尚无门徒。要招募 3 位侠客吗?(gas 由 Paymaster 代付)
 > yes
-✅ Minted: Shaolin-Yuanzhi · Tangmen-Feiyan · Emei-Jingyin
-    tx 0xabc… on Base Sepolia
+🥋 少林·圆智  ⚔️ 华山·令狐冲  🔥 明教·张无忌    tx 0x7a03… on Base
 ```
 
-No website. No wallet extension. No app install. You play a **fully on-chain wuxia brawler** from inside Claude Code / Cursor / Codex — anywhere MCP runs.
+No website · no wallet extension · no app install · no private key management.
 
-> 不用打开网页,不用装钱包插件,不用下 App。在 Claude Code 里一句 `/wuxia-fight` 就能玩全链上武侠对战。
+---
+
+## Live Deployment (Base Sepolia · chainId 84532)
+
+| Contract | Address | Purpose |
+|---|---|---|
+| **Arena** (v3) | [`0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61`](https://sepolia.basescan.org/address/0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61) | PVE / PVP entry, battle settlement |
+| **HeroNFT** | [`0x056bB8B1AeaaF4e5eB6a6b016fDE80C60e100f4A`](https://sepolia.basescan.org/address/0x056bB8B1AeaaF4e5eB6a6b016fDE80C60e100f4A) | ERC-721 heroes, gacha economy |
+| **GachaVault** | [`0x47135Ba1F3D9674869a63da07f40e42a57318A44`](https://sepolia.basescan.org/address/0x47135Ba1F3D9674869a63da07f40e42a57318A44) | Owner-only revenue sink · 48h timelock |
+| **StageRegistry** | [`0x613497e20D196952f169B316fd7Ad8f8eb519df7`](https://sepolia.basescan.org/address/0x613497e20D196952f169B316fd7Ad8f8eb519df7) | 13 stages registered · owner can hot-add more |
+| **SkillRegistry** | [`0xC1b36B703A349e2fB1B29c4B912C3144Ab69f3E1`](https://sepolia.basescan.org/address/0xC1b36B703A349e2fB1B29c4B912C3144Ab69f3E1) | 21 baseline skills · 7 sects × 3 each |
+
+Live stats (as of 2026-04-20): **20 battles settled · 18 heroes minted · 0.014 ETH vault revenue**, all verifiable on BaseScan.
 
 ---
 
 ## Table of Contents
 
-1. [Why this exists](#why-this-exists)
-2. [Quick Start (2 minutes)](#quick-start-2-minutes)
+1. [The Four Ideas](#the-four-ideas)
+2. [Quick Start](#quick-start-2-minutes)
 3. [Architecture](#architecture)
-4. [OnchainOS Integration](#onchainos-integration)
-5. [Tool Reference](#tool-reference)
-6. [AI vs AI Mode](#ai-vs-ai-mode)
+4. [Game Content](#game-content)
+5. [OnchainOS Integration](#onchainos-integration)
+6. [Test Coverage](#test-coverage)
 7. [Repo Layout](#repo-layout)
 8. [Development](#development)
-9. [Security](#security)
-10. [Roadmap](#roadmap)
-11. [Team & License](#team--license)
+9. [Roadmap](#roadmap)
+10. [License](#license)
 
 ---
 
-## Why this exists
+## The Four Ideas
 
-Web3 games die because they force humans into clunky browser dApps, seed phrases, and gas popups. Meanwhile, AI agents are becoming the **new dominant user** of the internet — they read docs, write code, and now hold wallets. We think the next killer chain-game is not another web app. It is a **skill** that agents invoke on the user's behalf.
+### 1. Agent-Native UX
+The UI isn't a React app. It's a **Claude Code skill** (`skill.md` + TypeScript CLI) that lives at `~/.claude/skills/xiake/`. Say `/xiake` in any Claude session and the storyteller persona takes over, translating game data into 武侠 narration while issuing on-chain tx behind the scenes. Works the same in Cursor, Codex, OpenCode — anywhere MCP runs.
 
-**Jianghu Brawl** is a proof. It is:
+### 2. OnchainOS Composable Wallet
+Every player gets an **MPC wallet** from OKX OnchainOS WaaS at first use — zero seed phrase, zero extension install. Gas is sponsored by a **Paymaster policy** whitelisting our three game entrypoints (`mintHeroTier`, `startPve`, `challenge`). Players spend 0.005 ETH per paid pull; everything else is free at the network layer.
 
-- **Agent-native** — the UI is a terminal agent, not a React app.
-- **Fully on-chain** — heroes are ERC-721, battles are deterministic Solidity simulations, reports are stored in contract storage.
-- **Composable** — published as an OnchainOS Skill, it stacks with wallet / DEX / DeFi skills in the same agent session.
-- **AI vs AI capable** — two agents can autonomously challenge each other while a caster-agent translates raw events into wuxia narration.
+### 3. AI vs AI Autonomy
+Two agents can challenge each other autonomously while a third **caster agent** narrates the battle in Jin Yong prose. The whole match — teams, seed, event log — is deterministically reproducible from the `BattleLog` event emitted on-chain, so anyone can replay any historical fight client-side.
+
+### 4. Fully On-Chain Determinism
+Combat is **a pure Solidity function** (`BattleEngine.simulate`). 30 rounds max, 7-sect rock-paper-scissors damage modifiers (`SectAffinity.multiplierBps`), crit/miss/control/DoT resolved from one PRNG seed. No off-chain oracle, no hidden server — auditable, forkable, MEV-resistant.
 
 ---
 
 ## Quick Start (2 minutes)
 
-Prereqs: Node ≥ 20, Claude Code (or any MCP host), an Anthropic API key, and OnchainOS credentials from the OKX Dev Portal.
-
-### 1. Install the skill
+### As a player (Claude Code)
 
 ```bash
-npm install -g wuxia-skill
-# or just use npx in the mcp.json below — no install needed
+# 1. Install the skill (one-time, user-level)
+#    skill.md goes to your Claude skills directory
+mkdir -p ~/.claude/skills/xiake
+cp skill/.claude/skills/xiake/skill.md ~/.claude/skills/xiake/  # if skill.md lives in repo
+export XIAKE_CLI_PATH="$PWD/skill/dist/cli.js"
+
+# 2. Build the TypeScript CLI
+cd skill && npm install && npm run build
+
+# 3. Play (in any Claude Code session)
+claude
+> /xiake
+# Follow the storyteller's prompts
 ```
 
-### 2. Add to your MCP host
+`XIAKE_MODE=mock` for local-only (no chain, no keys — default for first-time). `XIAKE_MODE=onchain` for live Base Sepolia with OnchainOS.
 
-`~/.config/claude-code/mcp.json` (macOS/Linux) or `%APPDATA%\claude-code\mcp.json` (Windows):
+### As a developer (running tests)
 
-```json
-{
-  "mcpServers": {
-    "wuxia": {
-      "command": "npx",
-      "args": ["-y", "wuxia-skill"],
-      "env": {
-        "OKX_API_KEY": "...",
-        "OKX_SECRET_KEY": "...",
-        "OKX_PASSPHRASE": "...",
-        "OKX_PROJECT_ID": "...",
-        "ANTHROPIC_API_KEY": "sk-ant-...",
-        "BASE_SEPOLIA_RPC": "https://sepolia.base.org",
-        "HERO_NFT_ADDRESS": "0x...",
-        "ARENA_ADDRESS": "0x..."
-      }
-    }
-  }
-}
+```bash
+cd contracts
+forge install foundry-rs/forge-std openzeppelin/openzeppelin-contracts@v5.0.2
+forge test               # 114 tests, all green
+forge snapshot --check   # regression gate for gas
 ```
 
-Copy `.env.example` for the full list of supported variables.
+### As a judge (inspect the live deployment)
 
-### 3. Play
-
-Restart Claude Code. In any chat:
-
-```
-> Start a wuxia fight. Mint my heroes if I don't have any.
-```
-
-Claude will call `wuxia_init` → `wuxia_mint_hero` → `wuxia_start_pve` in sequence. Gas is fully sponsored by the OnchainOS Paymaster — **you never sign a transaction or see a seed phrase**.
-
-### 4. (Optional) AI vs AI demo
-
-```
-> /wuxia_ai_vs_ai agentA=claude-sonnet agentB=claude-haiku caster=on
-```
-
-Two LLMs take control of the teams. A caster-agent streams wuxia commentary while the battle settles on-chain.
+- See all battles + events: https://sepolia.basescan.org/address/0x567aE39f1E1081E85a1d13b7135ef2d3Ea1FcC61#events
+- Vault revenue ledger: https://sepolia.basescan.org/address/0x47135Ba1F3D9674869a63da07f40e42a57318A44
+- Full test run with 45+ on-chain tx: [docs/C_LEVEL_TEST_SUMMARY.md](./docs/C_LEVEL_TEST_SUMMARY.md)
 
 ---
 
 ## Architecture
 
 ```
- ┌─────────────────────────────────────────────────────────┐
- │  Player: Claude Code / Cursor / Codex / OpenCode (MCP)  │
- └────────────────────────┬────────────────────────────────┘
-                          │ stdio / JSON-RPC
-                          ▼
- ┌─────────────────────────────────────────────────────────┐
- │     wuxia-skill  (MCP Server, TypeScript)               │
- │  ┌──────────┬──────────┬──────────┬──────────────────┐  │
- │  │  tools   │  state   │ renderer │ caster-agent     │  │
- │  │ (9)      │ (cache)  │ (ASCII)  │ (Claude stream)  │  │
- │  └──────────┴──────────┴──────────┴──────────────────┘  │
- └──────┬──────────────────────────────┬───────────────────┘
-        │                              │
-        ▼                              ▼
- ┌──────────────────┐          ┌─────────────────────────┐
- │  OnchainOS APIs  │          │   LLM API (caster)      │
- │ - Wallet (WaaS)  │          │ - Claude Haiku 4.5      │
- │ - Gateway (tx)   │          │ - Streaming output      │
- │ - Paymaster      │          └─────────────────────────┘
- │ - Security       │
- └────────┬─────────┘
-          │ signAndSend
-          ▼
- ┌──────────────────────────────────────────────────────┐
- │    Base Sepolia (Ethereum L2, chain id 84532)        │
- │  ┌──────────────┬──────────────┬──────────────────┐  │
- │  │  HeroNFT.sol │  Arena.sol   │ BattleEngine.sol │  │
- │  │  (ERC-721)   │  (PVE/PVP)   │ (pure library)   │  │
- │  └──────────────┴──────────────┴──────────────────┘  │
- └──────────────────────────────────────────────────────┘
+ ┌─────────────────────────────────────────────────────────────┐
+ │  Player in Claude Code / Cursor / Codex                      │
+ │  types: /xiake                                              │
+ └──────────────────────┬──────────────────────────────────────┘
+                        │
+          ┌─────────────▼──────────────┐
+          │  xiake-skill (TypeScript)  │  ~/.claude/skills/xiake/
+          │  persona + CLI + renderer  │  9,606 LOC
+          └─────────────┬──────────────┘
+                        │ 签名 & tx 路由
+          ┌─────────────▼──────────────┐
+          │  OnchainOS WaaS + Paymaster│  OKX Dev Portal
+          │  MPC wallet · gas sponsor  │
+          └─────────────┬──────────────┘
+                        │ 上链
+ ┌──────────────────────▼──────────────────────────────────────┐
+ │  Base (Sepolia now · Mainnet next)                          │
+ │                                                             │
+ │    HeroNFT ─ forwards paid fees ─→ GachaVault (48h timelock) │
+ │       │                                                      │
+ │       ├─ setArena ──────────→  Arena (v3)                    │
+ │       │                         │                            │
+ │    SkillRegistry ←──────── uses─┤                            │
+ │                                 ├── reads ──→ StageRegistry  │
+ │                                 │                            │
+ │                                 └── simulates ─→ BattleEngine│
+ │                                                    │         │
+ │                                        uses ──→ SectAffinity │
+ └─────────────────────────────────────────────────────────────┘
 ```
 
-See [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) for interface details, storage layout, gas budget and EIP-712 scheme.
+**2,579 LOC Solidity · 114 unit tests · 4 invariant tests (2,048 random ops each)** — see [docs/CODE_REVIEW.md](./docs/CODE_REVIEW.md).
+
+---
+
+## Game Content
+
+### 7 Sects with a 7-Ring Damage Matrix
+
+| # | Sect | Role | Signature Skills | Counters → |
+|---|---|---|---|---|
+| 0 | 🥋 少林 Shaolin | Tank · Healer | 金钟罩 / 易筋经 / 狮子吼 | Tangmen (+15%) |
+| 1 | 🗡️ 唐门 Tangmen | Assassin · Burst | 穿心刺 / 暗器急雨 / 毒针 | Emei (+15%) |
+| 2 | ⛩️ 峨眉 Emei | Support · Cleanse | 慈航普渡 / 净心咒 / 般若掌 | Wudang (+15%) |
+| 3 | ☯️ 武当 Wudang | Balanced · Counter | 太极推手 / 梯云纵 / 真武破军 | Beggars (+15%) |
+| 4 | 🥖 丐帮 Beggars | Control · Buff | 降龙十八掌 / 打狗棒法 / 醉八仙 | Huashan (+15%) |
+| 5 | ⚔️ 华山 Huashan | Swords · High Crit | 独孤九剑 / 紫霞神功 / 华山群剑 | Ming (+15%) |
+| 6 | 🔥 明教 Ming | Poison · Armor Break | 圣火令 / 乾坤大挪移 / 毒沙掌 | Shaolin (+15%) |
+
+Full ring: `Shaolin → Tangmen → Emei → Wudang → Beggars → Huashan → Ming → Shaolin`. No sect dominates; team composition matters.
+
+### 12 Story Stages + Dynamic Extensions
+
+3 chapters × 4 stages · reputation gates 0 / 55 / 130 / 240:
+
+- **Ch 1 初入江湖** — Shaolin試煉 → 唐門小試 → 峨眉清談 → 武當坐忘 👑
+- **Ch 2 門派恩怨** — 丐幫爭粥 → 華山論劍 → 藏經閣守衛 → 唐門暗堂 👑
+- **Ch 3 魔教來襲** — 光明頂前哨 → 四大護教法王 → 聖女勸降 → 教主決戰 👑
+
+The `StageRegistry.addStage` hot-path lets the content curator add new stages via a single tx — **no contract redeploy required**. A 13th stage was added post-launch as a demo.
+
+### Gacha Economy
+
+- **3 free pulls** on first mint (consumed then locked)
+- **3 price tiers**: Bronze 0.001 / Silver 0.005 / Gold 0.010 ETH
+- **10-pull discount**: -10%
+- **Sect-pity (30 抽)** forces the next rotation sect
+- **BOSS-pity (80 抽)** guarantees a signature skill bead
+- **Duplicate exchange**: burn 1 NFT = 5 reputation shards
+- **Referral reward**: referrer gets 0.002 ETH on referee's first paid pull
+
+All revenue lands in `GachaVault`, which only the owner address (set once at deploy) can touch — via a **48-hour timelock**. No rug pull possible by design.
 
 ---
 
 ## OnchainOS Integration
 
-**Why it matters for the sponsor track:** we exercise **five** OnchainOS surfaces in one user session — not just a toy call.
+Xiake Arena is built on top of OKX [OnchainOS](https://web3.okx.com/onchain-os/dev-portal) skills:
 
-| Surface | Endpoint / Product | Used for | Where in the code |
-|---|---|---|---|
-| Wallet-as-a-Service | `POST /api/v5/wallet/account/create-wallet-account` | First-time account provisioning inside `wuxia_init` (no seed phrase) | `skill/src/onchainos/wallet.ts` |
-| Wallet balance | `GET  /api/v5/wallet/asset/balance` | Show ETH + NFT holdings in the status card | `skill/src/onchainos/wallet.ts` |
-| Onchain Gateway | `POST /api/v5/onchain-gateway/tx/sign-and-send` | All `HeroNFT` / `Arena` writes (mint, PVE, challenge, set defense) | `skill/src/onchainos/gateway.ts` |
-| Paymaster | Dev-portal policy | 100% gas sponsorship for the two game contracts — players are gas-free forever | `skill/src/onchainos/paymaster.ts` |
-| Security | `POST /api/v5/security/scan` | Pre-flight every tx; refuse if flagged | `skill/src/onchainos/gateway.ts` (scan → sign) |
+- **[okx-agentic-wallet](https://github.com/okx/onchainos-skills/tree/main/skills/okx-agentic-wallet)**: first-run MPC wallet creation, address resolution, per-player TEE signing
+- **[okx-onchain-gateway](https://github.com/okx/onchainos-skills/tree/main/skills/okx-onchain-gateway)**: gas estimation, transaction broadcasting, receipt polling
+- **Paymaster policy** whitelists `mintHeroTier` / `startPve` / `challenge` selectors so players never need ETH to play
 
-**Private keys never leave OnchainOS.** The skill builds calldata, hands it to the WaaS Gateway, and receives a `txHash`. This is load-bearing for the prompt-injection threat model — see [Security](#security).
-
-> 为什么赞助商会喜欢这个集成:我们在同一次玩家会话中串起了 WaaS、Wallet、Gateway、Paymaster、Security 五个产品面,不是"调一个接口交差"。
-
----
-
-## Tool Reference
-
-All tools return Markdown, so the hosting agent can render inline. Full schemas live in `skill/src/tools/*.ts`.
-
-| Tool | Input | What it does |
-|---|---|---|
-| `wuxia_init` | – | Checks wallet, creates one via WaaS if missing, prints status card |
-| `wuxia_mint_hero` | – | Calls `HeroNFT.mintGenesis` through Paymaster; one-time per address |
-| `wuxia_list_heroes` | – | ASCII hero cards for current account |
-| `wuxia_start_pve` | `stageId?` | Runs a PVE stage against a hard-coded boss roster |
-| `wuxia_set_defense_team` | `heroIds:[id,id,id]` | Registers your arena defense line-up |
-| `wuxia_list_arena` | `limit?` | Lists current arena defenders by power |
-| `wuxia_challenge` | `target: address` | 3v3 PVP against another player's defense |
-| `wuxia_ai_vs_ai` | `agentA, agentB, caster?` | **Core demo** — two LLMs play each other with optional live narration |
-| `wuxia_replay` | `battleId` | Fetches a stored `BattleReport` and re-renders it |
-
----
-
-## AI vs AI Mode
-
-Two agents, different system prompts (one aggressive "Dongxie" style, one defensive "Xidu"), receive full battle state each turn and output a structured decision:
-
-```json
-{ "actorIdx": 2, "skillId": 7, "targetIdx": 0, "trashTalk": "落英缤纷,接招!" }
+Install the OnchainOS CLI first:
+```bash
+curl -sSL https://raw.githubusercontent.com/okx/onchainos-skills/main/install.sh | sh
+onchainos wallet login  # AK login with OKX Dev Portal credentials
 ```
 
-A third **caster agent** consumes the raw `BattleEvent[]` stream and narrates it in wuxia prose — streamed token-by-token to the player's terminal.
+Then set `XIAKE_MODE=onchain` in `.env` and the skill routes all tx through OnchainOS.
 
-We fight the "dice-roll LLM" failure mode by (a) feeding the sect-counter table every turn, (b) showing the opponent's last action, and (c) rejecting malformed outputs and re-prompting.
+---
 
-Full design: [`docs/TECHNICAL_DESIGN.md §4.6`](docs/TECHNICAL_DESIGN.md).
+## Test Coverage
+
+We treat this game as a financial instrument, not a toy. Results from the **C-level test run (2026-04-20)**:
+
+| Category | Count | Notes |
+|---|---|---|
+| forge unit tests | **114** | all green, 6 test files |
+| forge invariant tests | 4 × 64 runs × 32 depth | vault ledger never drifts across 2,048 random ops |
+| edge-probe revert paths | 15 | each matches the exact revert reason |
+| Sepolia integration tx | 45+ | from 9 autonomous Claude agents across 3 teams |
+| stress-test battles | 18 serial PVE | gas variance only ±12.6% (no drift, no state corruption) |
+
+Two production bugs were found **during testing and fixed live**:
+1. **P0** — PVE victory didn't advance `storyProgress.currentChapter` → **fixed** (Arena v2)
+2. **P1** — `stage.minReputation` was stored but never enforced by `startPve` → **fixed** (Arena v3)
+
+Arena has been redeployed twice using `script/UpgradeArena.s.sol` without touching the other contracts — players keep all hero NFTs and vault balances.
+
+See:
+- [docs/C_LEVEL_TEST_SUMMARY.md](./docs/C_LEVEL_TEST_SUMMARY.md) — full 6-phase playthrough
+- [docs/TEST_FINDINGS.md](./docs/TEST_FINDINGS.md) — bug list + root cause
+- [docs/CODE_REVIEW.md](./docs/CODE_REVIEW.md) — per-contract review
+- [docs/DEPLOY_PLAYBOOK.md](./docs/DEPLOY_PLAYBOOK.md) — step-by-step Sepolia deploy runbook
 
 ---
 
@@ -209,91 +235,105 @@ Full design: [`docs/TECHNICAL_DESIGN.md §4.6`](docs/TECHNICAL_DESIGN.md).
 
 ```
 jianghu/
-├── README.md                 ← you are here
-├── .env.example              ← all required env vars
-├── .gitignore
-├── docs/
-│   ├── PRD.md                ← product vision
-│   └── TECHNICAL_DESIGN.md   ← deep technical doc
-├── contracts/                ← Solidity + Foundry (HeroNFT, Arena, BattleEngine)
-├── skill/                    ← TypeScript MCP server (wuxia-skill on npm)
-├── scripts/
-│   ├── setup.sh              ← one-shot install + deploy + configure
-│   └── demo-ai-vs-ai.sh      ← demo day runner
-└── demo/
-    ├── ai-vs-ai.md           ← demo-day runbook + contingencies
-    ├── pitch-deck.md         ← 10-slide outline
-    └── demo-video-script.md  ← 3-minute video script
+├── README.md                   ← this file
+├── contracts/                  ← Solidity (2,579 LOC)
+│   ├── src/
+│   │   ├── Arena.sol           PVE + PVP + injury + learnSkill + rep gate
+│   │   ├── HeroNFT.sol         ERC-721 + gacha + referral + exchange + pity
+│   │   ├── GachaVault.sol      48h timelock revenue sink
+│   │   ├── StageRegistry.sol   Hot-add new PVE stages (owner/curator)
+│   │   ├── SkillRegistry.sol   21 baseline skills + addSkill admin
+│   │   ├── BattleEngine.sol    Pure simulate(teamA, teamB, seed)
+│   │   ├── SectAffinity.sol    7-ring rock-paper-scissors (±15% dmg)
+│   │   └── Types.sol
+│   ├── test/                   ← 114 tests + 4 invariants
+│   └── script/
+│       ├── Deploy.s.sol        Full stack deploy
+│       └── UpgradeArena.s.sol  Arena-only hot-upgrade (proven twice)
+│
+├── skill/                      ← Claude Code skill (TypeScript · 9,606 LOC)
+│   ├── src/
+│   │   ├── cli.ts              Main command dispatcher (25 commands)
+│   │   ├── onchainos/          OnchainOS WaaS + Paymaster + Gateway
+│   │   ├── chain/              viem ABI + on-chain reads
+│   │   ├── render/             ANSI battle reports
+│   │   ├── caster/             AI vs AI orchestrator
+│   │   └── tools/              MCP tool handlers
+│   ├── mcp.json                Claude Code MCP manifest
+│   └── package.json            → `xiake-skill` on npm (pending publish)
+│
+└── docs/                       ← 10 design + test documents
+    ├── PRD.md
+    ├── TECHNICAL_DESIGN.md
+    ├── GACHA_PRD_TECH.md        Gacha economy PRD
+    ├── CONTENT_UPDATES.md       How to add content post-launch
+    ├── CODE_REVIEW.md           Per-contract security/gas review
+    ├── TEST_PLAN_C.md           6-phase test methodology
+    ├── C_LEVEL_TEST_SUMMARY.md  Full test run report
+    ├── TEST_FINDINGS.md         Bug list + fixes
+    ├── STATUS_REPORT.md         Completion score & roadmap
+    └── DEPLOY_PLAYBOOK.md       Sepolia deploy runbook
 ```
 
 ---
 
 ## Development
 
-### Prereqs
-
-- [Foundry](https://book.getfoundry.sh) (`curl -L https://foundry.paradigm.xyz | bash && foundryup`)
-- Node ≥ 20 and npm ≥ 10
-- A funded Base Sepolia deployer key (get ETH from [coinbase faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet))
-- OnchainOS dev-portal credentials
-
-### One-shot setup
+### Rebuild & test
 
 ```bash
-cp .env.example .env
-# fill in the blanks
-bash scripts/setup.sh
+cd contracts && forge test
+cd ../skill && npm run build && npm test
 ```
 
-The script will: verify toolchain → build contracts → run Foundry tests → deploy to Base Sepolia → write addresses into `skill/.env` → build the skill → print a ready-to-paste `mcp.json` snippet.
-
-### Run the AI vs AI demo
+### Re-deploy only the Arena (proven hot-upgrade path)
 
 ```bash
-bash scripts/demo-ai-vs-ai.sh
+cd contracts
+forge script script/UpgradeArena.s.sol --rpc-url $BASE_SEPOLIA_RPC --broadcast
 ```
 
-Opens a tmux three-pane layout: left = Agent A, middle = Agent B, right = caster narration. See [`demo/ai-vs-ai.md`](demo/ai-vs-ai.md).
+The script re-wires `HeroNFT.setArena(newArena)` so historical `HeroNFT` / `Vault` / `StageRegistry` / `SkillRegistry` continue to work — players keep all hero NFTs and vault balances.
 
-### Test
+### Play on a fresh Sepolia wallet (judge-friendly)
 
-```bash
-cd contracts && forge test -vv
-cd ../skill && npm test
-```
+1. Get Sepolia ETH: [Coinbase faucet](https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet) (0.05 ETH free per day)
+2. Mint genesis:
+   ```bash
+   cast send 0x056bB8B1AeaaF4e5eB6a6b016fDE80C60e100f4A \
+     "mintGenesis(address)" $YOUR_ADDR \
+     --rpc-url https://sepolia.base.org \
+     --private-key $YOUR_PK \
+     --gas-limit 2000000
+   ```
+3. Set defense: `cast send <Arena> "setDefenseTeam(uint256[3])" "[<ids>]" ...`
+4. First PVE: `cast send <Arena> "startPve(uint256[3],uint8)" "[<ids>]" 1 --gas-limit 4000000 ...`
 
----
-
-## Security
-
-- **No private keys in the agent context.** Ever. Signing is delegated to OnchainOS WaaS + MPC. The skill refuses tool inputs that look like `0x[64 hex]`.
-- **Strict Zod schemas** on every tool input; address regex, numeric bounds.
-- **Pre-flight Security scan** before every `sign-and-send`.
-- **EIP-712 with per-player nonce** in `Arena.sol` — no signature replay.
-- **`.env` is git-ignored** and API keys are never logged.
-
-Full threat model: [`docs/TECHNICAL_DESIGN.md §8`](docs/TECHNICAL_DESIGN.md).
+Total cost: ≈ **$0.05 in Sepolia gas** to play a full chapter.
 
 ---
 
 ## Roadmap
 
-**Now (hackathon MVP):** 3 sects × 3 heroes, 1 PVE stage, PVP arena, AI vs AI + caster.
-
-**+1 month:** 6 sects (Wudang / Gaibang / Mingjiao / Huashan), seasonal ladder, replay-sharing URLs.
-
-**+3 months:** upstream PR into `okx/onchainos-skills`, npm-publish `wuxia-skill@1.0`, Pyth Entropy for fair randomness, mainnet Base launch.
-
-**Beyond:** cross-skill combos (DEX skill sells hero loot, lending skill collateralizes rare heroes), community-submitted sects as plug-in skills.
+| Milestone | Status | Target |
+|---|---|---|
+| 7 sects · 12 stages · 21 skills on-chain | ✅ deployed | 2026-04 |
+| 114 forge tests + invariants | ✅ green | 2026-04 |
+| Sepolia · 45+ integration tx from AI agents | ✅ verified | 2026-04 |
+| `StageRegistry.addStage` hot-add workflow | ✅ demonstrated | 2026-04 |
+| OnchainOS live mainnet E2E (player `/xiake` zero-key) | 🟡 blocked on Base mainnet deploy | 2026-05 |
+| `Pyth Entropy` replacing `block.prevrandao` | 🔲 | 2026-06 |
+| Slither + Aderyn pre-audit | 🔲 | 2026-06 |
+| Dune analytics board | 🔲 | 2026-06 |
+| Season rankings + leaderboard on-chain | 🔲 | 2026-07 |
+| npm publish `xiake-skill@1.0` | 🔲 | when OnchainOS mainnet live |
 
 ---
 
-## Team & License
+## License
 
-Built for the **Anthropic MCP × OKX OnchainOS × ETHGlobal AI Agent** hackathon, April 2026.
+MIT. Built as a hackathon submission for **OnchainOS × Claude Code · 2026-04**. Contributions welcome.
 
-License: MIT. See [`LICENSE`](LICENSE).
+If you fork this for your own chain-game, the three non-negotiable rules we baked into the code are worth reading first: [docs/CONTENT_UPDATES.md §0](./docs/CONTENT_UPDATES.md) (the three red lines).
 
-Questions, bugs, war stories — open an issue or ping us on X / Discord (links in `demo/pitch-deck.md`).
-
-> 江湖路远,后会有期。
+**Built with**: Claude Opus 4.7 (1M context) as pair-programmer across every commit · foundry for contracts · viem + axios for skill.

@@ -1,4 +1,4 @@
-// Tool: wuxia_ai_vs_ai (CORE demo)
+// Tool: xiake_ai_vs_ai (CORE demo)
 // Delegates to ../caster/runAiVsAi — the orchestrator that runs two agent
 // personas against each other, optionally with a streamed commentary layer.
 // This handler is mostly input validation + error framing.
@@ -20,9 +20,9 @@ export const inputSchema = z
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_ai_vs_ai",
+  name: "xiake_ai_vs_ai",
   description:
-    "江湖大乱斗 AI 对战。无需任何配置即可运行(自动 mock 模式)。返回逐回合战报,适合让 AI agent 用金庸风格解说。",
+    "侠客擂台 AI 对战。无需任何配置即可运行(自动 mock 模式)。返回逐回合战报,适合让 AI agent 用金庸风格解说。",
   inputSchema: {
     type: "object",
     properties: {
@@ -56,7 +56,7 @@ export async function handler(raw: unknown) {
   return guard(async () => {
     const input = inputSchema.parse(raw ?? {});
     const hasApiKey = Boolean(process.env.ANTHROPIC_API_KEY);
-    const hasChain = Boolean(process.env.WUXIA_ARENA_ADDRESS);
+    const hasChain = Boolean(process.env.XIAKE_ARENA_ADDRESS);
 
     const report = await runAiVsAi({
       agentA: input.agentA ?? (hasApiKey ? "claude" : "mock"),

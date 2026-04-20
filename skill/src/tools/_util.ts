@@ -32,8 +32,8 @@ export function formatError(e: unknown): string {
       "",
       "启动 skill 前请在 MCP config 中补齐合约地址环境变量:",
       "```",
-      "WUXIA_HERO_ADDRESS=0x...",
-      "WUXIA_ARENA_ADDRESS=0x...",
+      "XIAKE_HERO_ADDRESS=0x...",
+      "XIAKE_ARENA_ADDRESS=0x...",
       "```",
     ].join("\n");
   }
@@ -55,7 +55,7 @@ export function requirePlayer<T extends { address: `0x${string}` }>(
   player: T | undefined,
 ): T {
   if (!player) {
-    throw new Error("尚未初始化玩家信息,请先调用 `wuxia_init`。");
+    throw new Error("尚未初始化玩家信息,请先调用 `xiake_init`。");
   }
   return player;
 }

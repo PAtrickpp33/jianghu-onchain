@@ -1,21 +1,21 @@
-# wuxia-skill · 江湖大乱斗
+# xiake-skill · 侠客擂台
 
 > A fully on-chain 3v3 wuxia brawler, played from inside **Claude Code / Cursor / Codex** as a skill.
 
-`wuxia-skill` ships the CLI engine that powers the `wuxia-fight` skill. It handles hero minting, PvE chapters, AI-vs-AI arena matches, wounds, and skill-bead equipment — in mock mode by default, and on Base Sepolia when OnchainOS env is configured.
+`xiake-skill` ships the CLI engine that powers the `xiake` skill. It handles hero minting, PvE chapters, AI-vs-AI arena matches, wounds, and skill-bead equipment — in mock mode by default, and on Base Sepolia when OnchainOS env is configured.
 
 ---
 
 ## Install
 
 ```bash
-npm install -g wuxia-skill
+npm install -g xiake-skill
 ```
 
-Requires **Node.js ≥ 20**. Verify the install exposes the `wuxia-skill` binary:
+Requires **Node.js ≥ 20**. Verify the install exposes the `xiake-skill` binary:
 
 ```bash
-wuxia-skill init
+xiake-skill init
 # ⛩️  Welcome to Jianghu ...
 ```
 
@@ -23,30 +23,30 @@ wuxia-skill init
 
 ## Claude Code skill setup
 
-The skill definition lives at `<repo>/.claude/skills/wuxia-fight/skill.md` and invokes the CLI over Bash. Point the skill at the installed binary:
+The skill definition lives at `<repo>/.claude/skills/xiake/skill.md` and invokes the CLI over Bash. Point the skill at the installed binary:
 
 ```bash
 # macOS / Linux
-export WUXIA_CLI_PATH="$(which wuxia-skill)"
+export WUXIA_CLI_PATH="$(which xiake-skill)"
 
 # Windows (PowerShell)
-$env:WUXIA_CLI_PATH = (Get-Command wuxia-skill).Source
+$env:WUXIA_CLI_PATH = (Get-Command xiake-skill).Source
 ```
 
 Or call the published entry via `npx`:
 
 ```bash
-npx -y wuxia-skill <command>
+npx -y xiake-skill <command>
 ```
 
 Minimal `skill.md` snippet (the repo ships a full version):
 
 ```markdown
 ---
-name: wuxia-fight
-description: 江湖大乱斗 — 武侠 3v3 回合制对战链游
+name: xiake
+description: 侠客擂台 — 武侠 3v3 回合制对战链游
 ---
-Run the CLI via Bash: `wuxia-skill <command> [args...]`.
+Run the CLI via Bash: `xiake-skill <command> [args...]`.
 On first call use `init`, then `mint 3`, then `pve 1-1`.
 ```
 
@@ -81,17 +81,17 @@ The CLI prints the active mode on the first line of every `init` call.
 
 | Command | Description |
 |---------|-------------|
-| `wuxia-skill init` | Welcome banner + game menu. Always run first in a new session. |
-| `wuxia-skill mint [1..3]` | Mint 1-3 genesis heroes (mock appends, onchain calls `mintHero`). |
-| `wuxia-skill heroes` | List owned heroes. `⚕️` = wounded, `🎁` = has skill beads. |
-| `wuxia-skill team <a> <b> <c>` | Set the active 3v3 roster by tokenId. |
-| `wuxia-skill stages` | Show PvE chapters with unlock status. |
-| `wuxia-skill pve <stageId>` | Run a PvE battle. Accepts `1-1` or legacy `1`. |
-| `wuxia-skill pvp` | Run an AI-vs-AI match with your active team. |
-| `wuxia-skill wounds` | Show injured heroes and remaining recovery seconds. |
-| `wuxia-skill equip <heroId> <slot> <skillId>` | Equip a collected skill bead into slot 0-2. |
-| `wuxia-skill arena` | Arena / leaderboard commands (PvP mode). |
-| `wuxia-skill status` | Dump current game state (reputation, cleared stages, battle history). |
+| `xiake-skill init` | Welcome banner + game menu. Always run first in a new session. |
+| `xiake-skill mint [1..3]` | Mint 1-3 genesis heroes (mock appends, onchain calls `mintHero`). |
+| `xiake-skill heroes` | List owned heroes. `⚕️` = wounded, `🎁` = has skill beads. |
+| `xiake-skill team <a> <b> <c>` | Set the active 3v3 roster by tokenId. |
+| `xiake-skill stages` | Show PvE chapters with unlock status. |
+| `xiake-skill pve <stageId>` | Run a PvE battle. Accepts `1-1` or legacy `1`. |
+| `xiake-skill pvp` | Run an AI-vs-AI match with your active team. |
+| `xiake-skill wounds` | Show injured heroes and remaining recovery seconds. |
+| `xiake-skill equip <heroId> <slot> <skillId>` | Equip a collected skill bead into slot 0-2. |
+| `xiake-skill arena` | Arena / leaderboard commands (PvP mode). |
+| `xiake-skill status` | Dump current game state (reputation, cleared stages, battle history). |
 
 All commands print human-readable output on stdout and return non-zero on usage errors.
 
@@ -100,13 +100,13 @@ All commands print human-readable output on stdout and return non-zero on usage 
 ## Typical session
 
 ```bash
-wuxia-skill init
-wuxia-skill mint 3
-wuxia-skill stages
-wuxia-skill pve 1-1
-wuxia-skill wounds
-wuxia-skill pvp
-wuxia-skill status
+xiake-skill init
+xiake-skill mint 3
+xiake-skill stages
+xiake-skill pve 1-1
+xiake-skill wounds
+xiake-skill pvp
+xiake-skill status
 ```
 
 ---

@@ -1,4 +1,4 @@
-// Tool: wuxia_list_arena
+// Tool: xiake_list_arena
 // Reads Arena.listArena(offset=0, limit=10 by default) and renders the
 // leaderboard of challengeable players.
 
@@ -16,7 +16,7 @@ export const inputSchema = z
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_list_arena",
+  name: "xiake_list_arena",
   description: "查询擂台上的对手列表,按战力排序。",
   inputSchema: {
     type: "object",

@@ -1,4 +1,4 @@
-// Tool: wuxia_list_heroes
+// Tool: xiake_list_heroes
 // Lists every hero NFT owned by the current wallet and renders ASCII cards.
 
 import { z } from "zod";
@@ -11,7 +11,7 @@ export const inputSchema = z.object({}).strict();
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_list_heroes",
+  name: "xiake_list_heroes",
   description:
     "列出当前钱包持有的所有侠客 NFT,逐个渲染 ASCII 属性卡。",
   inputSchema: {
@@ -31,7 +31,7 @@ export async function handler(raw: unknown) {
       return [
         "### 你还没有侠客",
         "",
-        "调用 `wuxia_mint_hero` 领取 3 位 genesis 侠客 NFT(paymaster 代付)。",
+        "调用 `xiake_mint_hero` 领取 3 位 genesis 侠客 NFT(paymaster 代付)。",
       ].join("\n");
     }
 

@@ -1,4 +1,4 @@
-// Tool: wuxia_challenge
+// Tool: xiake_challenge
 // Challenges the defense lineup of `target`. Attacker's team is the attacker's
 // current top 3 heroes (contract enforces, skill just passes intent).
 
@@ -31,7 +31,7 @@ export const inputSchema = z
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_challenge",
+  name: "xiake_challenge",
   description: "挑战擂台上的其他侠客;会在链上模拟 3v3 战斗并返回战报。",
   inputSchema: {
     type: "object",

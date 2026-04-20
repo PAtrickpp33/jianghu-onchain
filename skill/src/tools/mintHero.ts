@@ -1,4 +1,4 @@
-// Tool: wuxia_mint_hero
+// Tool: xiake_mint_hero
 // Creates 3 random heroes. In mock mode, generates locally.
 // In on-chain mode, calls HeroNFT.mintGenesis via OnchainOS.
 
@@ -12,7 +12,7 @@ export const inputSchema = z.object({}).strict();
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_mint_hero",
+  name: "xiake_mint_hero",
   description:
     "招募三位 genesis 侠客。演武模式下本地生成,链上模式通过 OnchainOS paymaster 免费铸造 NFT。",
   inputSchema: {
@@ -23,7 +23,7 @@ export const toolDef = {
 } as const;
 
 function isMockMode(): boolean {
-  return !process.env.WUXIA_ARENA_ADDRESS || !process.env.WUXIA_HERO_ADDRESS;
+  return !process.env.XIAKE_ARENA_ADDRESS || !process.env.XIAKE_HERO_ADDRESS;
 }
 
 export async function handler(raw: unknown) {
@@ -46,7 +46,7 @@ export async function handler(raw: unknown) {
       const { fetchOwnedHeroIds, fetchHeroes } = await import("../chain/reads.js");
 
       const playerObj = getCurrentPlayer();
-      if (!playerObj) throw new Error("请先调用 wuxia_init 进入游戏。");
+      if (!playerObj) throw new Error("请先调用 xiake_init 进入游戏。");
       const playerAddr = playerObj.address;
 
       const { hero } = getAddresses();

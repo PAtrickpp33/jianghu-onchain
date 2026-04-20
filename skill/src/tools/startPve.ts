@@ -1,4 +1,4 @@
-// Tool: wuxia_start_pve
+// Tool: xiake_start_pve
 // PVE battle. In mock mode, uses offline simulator.
 // In on-chain mode, sends Arena.startPve via OnchainOS gateway.
 
@@ -31,7 +31,7 @@ export const inputSchema = z
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_start_pve",
+  name: "xiake_start_pve",
   description:
     "挑战 PVE 关卡。stageId: 1=少林藏经阁(简单), 2=唐门密室(普通), 3=峨眉金顶(普通)。不传参默认第1关。",
   inputSchema: {
@@ -50,7 +50,7 @@ export const toolDef = {
 } as const;
 
 function isMockMode(): boolean {
-  return !process.env.WUXIA_ARENA_ADDRESS || !process.env.WUXIA_HERO_ADDRESS;
+  return !process.env.XIAKE_ARENA_ADDRESS || !process.env.XIAKE_HERO_ADDRESS;
 }
 
 // PVE boss teams for each stage
@@ -95,7 +95,7 @@ async function runMockPve(stageId: number, stageName: string): Promise<string> {
   const heroCache = getHeroCache();
   const playerTeam = [...heroCache.values()].slice(0, 3);
   if (playerTeam.length < 3) {
-    throw new Error("你至少需要 3 位侠客才能出战,请先「招募侠客」(wuxia_mint_hero)。");
+    throw new Error("你至少需要 3 位侠客才能出战,请先「招募侠客」(xiake_mint_hero)。");
   }
 
   const bossTeam = BOSS_TEAMS[stageId] ?? BOSS_TEAMS[1]!;
@@ -147,11 +147,11 @@ async function runOnChainPve(stageId: number, stageName: string): Promise<string
   const { cacheHeroes } = await import("../state/cache.js");
 
   const playerObj = getCurrentPlayer();
-  if (!playerObj) throw new Error("请先调用 wuxia_init 进入游戏。");
+  if (!playerObj) throw new Error("请先调用 xiake_init 进入游戏。");
   const player = playerObj.address;
 
   const owned = await fetchOwnedHeroIds(player);
-  if (owned.length < 3) throw new Error("你至少需要 3 位侠客。先调用 wuxia_mint_hero。");
+  if (owned.length < 3) throw new Error("你至少需要 3 位侠客。先调用 xiake_mint_hero。");
   const team: [bigint, bigint, bigint] = [owned[0]!, owned[1]!, owned[2]!];
 
   const { arena } = getAddresses();

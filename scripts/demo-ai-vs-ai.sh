@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Jianghu Brawl · AI vs AI demo launcher
+# Xiake Arena · AI vs AI demo launcher
 # ----------------------------------------------------------------------------
-# Opens a tmux session named "wuxia-demo" with three panes:
+# Opens a tmux session named "xiake-demo" with three panes:
 #
 #   ┌──────────────────┬──────────────────┐
 #   │ (1) Agent A      │ (3) Caster       │
@@ -108,7 +108,7 @@ if [[ "${RECORDED}" -eq 1 ]]; then
 fi
 
 # ── tmux layout ──────────────────────────────────────────────────────────────
-SESSION="wuxia-demo"
+SESSION="xiake-demo"
 TS="$(date +%Y%m%d-%H%M%S)"
 LOG_A="${LOG_DIR}/agent-a-${TS}.log"
 LOG_B="${LOG_DIR}/agent-b-${TS}.log"

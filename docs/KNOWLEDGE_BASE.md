@@ -1,4 +1,4 @@
-# 《江湖大乱斗》知识库
+# 《侠客擂台》知识库
 
 > 最后更新: 2026-04-17 · 版本 v0.2.0 (5 周迭代后)
 > 用途: 冷启新 session 时,先读这份就能建立完整心智模型。
@@ -18,12 +18,12 @@
 | 维度 | 状态 |
 |---|---|
 | **版本** | v0.2.0 (npm 包已配,未发布) |
-| **Skill 入口** | `C:/Users/pengp/.claude/skills/wuxia-fight/skill.md` |
+| **Skill 入口** | `C:/Users/pengp/.claude/skills/xiake/skill.md` |
 | **CLI 主文件** | `skill/src/cli.ts` |
 | **默认模式** | `mock` (本地 RNG + state.json) |
 | **链上模式** | 代码就绪,合约未 deploy |
 | **5 周累计交付** | 24 个 task (init → 抽卡 v2 深化 → 成就/赛季) |
-| **文档** | 5 份 (此文件 + PRD + TECHNICAL_DESIGN + REDESIGN_REPORT + BATTLE_REPORT_V2 + GACHA_PRD_TECH) |
+| **文档** | 4 份 (此文件 + PRD + TECHNICAL_DESIGN + GACHA_PRD_TECH) |
 
 ---
 
@@ -41,7 +41,7 @@ jianghu/
 │       ├── BattleEngine.sol       纯库,确定性模拟
 │       ├── SkillRegistry.sol      技能元数据
 │       └── Types.sol              Hero / HeroHealth / StoryProgress struct
-├── skill/                          TypeScript, npm name: wuxia-skill
+├── skill/                          TypeScript, npm name: xiake-skill
 │   ├── package.json               v0.2.0, bin = dist/cli.js
 │   ├── README.md                  npm 包说明 (publish-eng 造)
 │   ├── src/
@@ -102,10 +102,10 @@ jianghu/
 
 ### 3.1 双模式: mock / onchain
 
-- `WUXIA_MODE=mock` (默认): 纯本地 RNG + 战斗模拟 + state.json,无网络
-- `WUXIA_MODE=onchain`: 真合约 + OnchainOS,ABI 调用通过 `gateway.signAndSend`
-- `WUXIA_MODE=hybrid`: 部分 mock 部分上链,开发调试用
-- **自动检测**: 未设 `WUXIA_MODE` 时,若 `WUXIA_ARENA_ADDRESS` + `WUXIA_HERO_ADDRESS` 都有 → `onchain`,否则 `mock`
+- `XIAKE_MODE=mock` (默认): 纯本地 RNG + 战斗模拟 + state.json,无网络
+- `XIAKE_MODE=onchain`: 真合约 + OnchainOS,ABI 调用通过 `gateway.signAndSend`
+- `XIAKE_MODE=hybrid`: 部分 mock 部分上链,开发调试用
+- **自动检测**: 未设 `XIAKE_MODE` 时,若 `XIAKE_ARENA_ADDRESS` + `XIAKE_HERO_ADDRESS` 都有 → `onchain`,否则 `mock`
 
 ### 3.2 战斗系统
 
@@ -155,17 +155,35 @@ jianghu/
 - `list-arena` 查擂台防守榜单 (mock 5 个假对手 / onchain 读 Arena)
 - `pvp ai` 仍保留随机对战模式
 
-### 3.6 剧情 / 章节
+### 3.6 七大门派
 
-3 章 × 4 关 = 12 关,声望门槛 0/80/200:
-- 第 1 章 入门江湖 (少林)
-- 第 2 章 名剑山庄 (唐门)
-- 第 3 章 华山论剑 (峨眉)
-- 每章第 4 关是 👑 章节 BOSS
+| # | 门派 | 定位 | 招牌技能 | 克制 |
+|---|---|---|---|---|
+| 0 | 🥋 少林 | 坦克·治疗 | 金钟罩 / 易筋经 / 狮子吼 | 克唐门,被明教克 |
+| 1 | 🗡️ 唐门 | 刺客·爆发 | 穿心刺 / 暗器急雨 / 毒针 | 克峨眉,被少林克 |
+| 2 | ⛩️ 峨眉 | 辅助·净化 | 慈航普渡 / 净心咒 / 般若掌 | 克武当,被唐门克 |
+| 3 | ☯️ 武当 | 均衡·反制 | 太极推手 / 梯云纵 / 真武破军 | 克丐帮,被峨眉克 |
+| 4 | 🥖 丐帮 | 控场·buff | 降龙十八掌 / 打狗棒法 / 醉八仙 | 克华山,被武当克 |
+| 5 | ⚔️ 华山 | 剑术·高暴击 | 独孤九剑 / 紫霞神功 / 华山群剑 | 克明教,被丐帮克 |
+| 6 | 🔥 明教 | 毒术·破防 | 圣火令 / 乾坤大挪移 / 毒沙掌 | 克少林,被华山克 |
 
-### 3.7 成就 / 赛季 / 复盘 (Wave 2)
+7 派形成一个**环形相克**(damage ×1.15 vs 下家,×0.85 vs 上家)。由 `SectAffinity` 纯库在 BattleEngine 里实现,无存储、无升级风险。CLI 用 `lore <门派>` 查背景。
 
-- **10 个成就** 自动解锁: first_mint / three_sects / first_kill / first_pve / first_boss / first_arena / crit_master / skill_bead_collector / no_deaths_stage / chapter1_clear
+### 3.7 剧情 / 12 关
+
+三章 × 4 关,声望门槛 0/55/130/240 等:
+
+| 章 | 主题 | 关卡 |
+|---|---|---|
+| 1 | 初入江湖 | 少林试炼 / 唐门小试 / 峨眉清谈 / 武当坐忘👑 |
+| 2 | 门派恩怨 | 丐帮争粥 / 华山论剑 / 少林藏经阁守卫 / 唐门暗堂👑 |
+| 3 | 魔教来袭 | 光明顶前哨 / 四大护教法王 / 圣女劝降 / 教主决战👑 |
+
+关卡数据由链上 `StageRegistry` 合约持久化,`Arena.startPve` 按 stageId 查表。新关卡走 `StageRegistry.addStage` 1 笔交易即可(见 `docs/CONTENT_UPDATES.md`)。
+
+### 3.8 成就 / 赛季 / 复盘 (Wave 2)
+
+- **11 个成就** 自动解锁: first_mint / three_sects / **seven_sects** / first_kill / first_pve / first_boss / first_arena / crit_master / skill_bead_collector / no_deaths_stage / chapter1_clear
 - **赛季**: 14 天周期,到期自动清声望 50% + 重置 pity (mock 本地,未接合约)
 - **复盘**: 保留最近 20 场完整 events + 阵容 + MVP,`replay [index]` 回放
 
@@ -311,8 +329,6 @@ jianghu/
 
 | 主题 | 阵容 | 产出文档 |
 |---|---|---|
-| 游戏重设计 | 游戏策划/合约大师/Skill 编写大师/OnchainOS 对接大师 | `REDESIGN_REPORT.md` |
-| 战报 v2 | 游戏策划/产品/玩家/武侠小说家 | `BATTLE_REPORT_V2.md` |
 | 抽卡经济 | 合约专家/产品/玩家/Skill 专家 | `GACHA_PRD_TECH.md` |
 
 ---
@@ -337,9 +353,8 @@ jianghu/
 | `README.md` (项目根) | Hackathon pitch + 5 秒钩子 |
 | `docs/PRD.md` | 原始 v1.0 产品需求 (2026-04-16) |
 | `docs/TECHNICAL_DESIGN.md` | 原始技术设计 (早于 5 周迭代) |
-| `docs/REDESIGN_REPORT.md` | Week 0 重设计报告 + SOP-01 |
-| `docs/BATTLE_REPORT_V2.md` | 战报 UX v2 方案 |
 | `docs/GACHA_PRD_TECH.md` | 抽卡 PRD + 技术方案 |
+| `docs/CODE_REVIEW.md` | 2026-04-19 Xiake 重构 code review |
 | `docs/KNOWLEDGE_BASE.md` | **本文** · 冷启知识库 |
 | `skill/README.md` | npm 包用户文档 |
 | skill.md (用户目录) | Claude Code Skill 指令 |

@@ -9,7 +9,7 @@
 //
 // plus a high-level `renderBattleReport(...)` that emits a complete report.
 //
-// `*Stream` variants are async-iterables so the `wuxia_ai_vs_ai` orchestrator
+// `*Stream` variants are async-iterables so the `xiake_ai_vs_ai` orchestrator
 // can flush output round-by-round while a caster agent is still talking. We
 // deliberately avoid any state in this module — each call is a pure function
 // of its arguments.
@@ -153,7 +153,7 @@ function renderHeader(report: BattleReport): string {
   const atk = formatTeam(report.attackerTeam);
   const def = formatTeam(report.defenderTeam);
   return [
-    bold("🏯 江湖大乱斗 · 战报"),
+    bold("🏯 侠客擂台 · 战报"),
     faint(`battleId: ${report.battleId}  ${when} UTC`),
     `${bold("Attacker")} ${shortAddr(report.attacker)}  ${atk}`,
     `${bold("Defender")} ${shortAddr(report.defender)}  ${def}`,

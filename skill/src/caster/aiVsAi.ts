@@ -12,7 +12,7 @@
 //           injected through `deps`).
 //        c. The resulting `BattleEvent[]` is fed to the caster to produce
 //           commentary, which we stream alongside the ASCII renderer.
-//   3. A final `BattleReport` is returned; the caller (the `wuxia_ai_vs_ai`
+//   3. A final `BattleReport` is returned; the caller (the `xiake_ai_vs_ai`
 //      tool handler) bundles it into the tool response.
 //
 // This module does NOT touch the OnchainOS SDK directly — it is simulation +
@@ -113,10 +113,16 @@ export interface AiVsAiResult {
 
 // ── The orchestrator ────────────────────────────────────────────────────────
 
+// Ring-of-7: counters = next in cycle, weakTo = previous. Mirrors
+// SectAffinity.sol so the LLM agent and the on-chain damage multiplier agree.
 const SECT_CHART: AgentDecisionInput["sectChart"] = {
-  [Sect.Shaolin]: { counters: Sect.Tangmen, weakTo: Sect.Emei },
-  [Sect.Tangmen]: { counters: Sect.Emei, weakTo: Sect.Shaolin },
-  [Sect.Emei]: { counters: Sect.Shaolin, weakTo: Sect.Tangmen },
+  [Sect.Shaolin]: { counters: Sect.Tangmen, weakTo: Sect.Ming },
+  [Sect.Tangmen]: { counters: Sect.Emei,    weakTo: Sect.Shaolin },
+  [Sect.Emei]:    { counters: Sect.Wudang,  weakTo: Sect.Tangmen },
+  [Sect.Wudang]:  { counters: Sect.Beggars, weakTo: Sect.Emei },
+  [Sect.Beggars]: { counters: Sect.Huashan, weakTo: Sect.Wudang },
+  [Sect.Huashan]: { counters: Sect.Ming,    weakTo: Sect.Beggars },
+  [Sect.Ming]:    { counters: Sect.Shaolin, weakTo: Sect.Huashan },
 };
 
 /**
@@ -139,7 +145,7 @@ export async function runAiVsAi(input: AiVsAiInput, deps: AiVsAiDeps): Promise<A
   const reports: BattleReport[] = [];
 
   emit(bold("════════════════════════════════════════════════════════════"));
-  emit(bold(`  江湖大乱斗 · AI vs AI Demo  (${battles} 场)  `));
+  emit(bold(`  侠客擂台 · AI vs AI Demo  (${battles} 场)  `));
   emit(bold("════════════════════════════════════════════════════════════"));
 
   // Hydrate both teams once — they don't change between battles in the demo.

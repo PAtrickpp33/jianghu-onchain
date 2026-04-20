@@ -29,7 +29,7 @@
 
 - 3 seconds of pure black (#000), 48-point monospace cursor blinking at screen-center.
 - At 0:05: single keystroke SFX per character types:
-  `> /wuxia-fight`
+  `> /xiake`
 - At 0:10: newline, the text `⛩️  Welcome to Jianghu.` fades in.
 - Hold on the fade-in until 0:15.
 
@@ -69,7 +69,7 @@ your AI?"*
 - Faint erhu motif enters at 0:20, ducks under VO.
 
 **VO (0:18-0:40)**
-*"Jianghu Brawl is a fully on-chain wuxia game that runs as an agent skill.
+*"Xiake Arena is a fully on-chain wuxia game that runs as an agent skill.
 No website. No wallet popup. No seed phrase. You play it from inside Claude
 Code — or any MCP-compatible agent."*
 
@@ -164,7 +164,7 @@ Re-playable. Cost the player zero."*
   with the command line:
 
 ```
-  npx wuxia-skill          ← install it now
+  npx xiake-skill          ← install it now
 ```
 
 - 2:50: final card, centered, 48pt:
@@ -175,12 +175,12 @@ Re-playable. Cost the player zero."*
 - Fade to black at 2:58.
 
 **VO (2:30-2:55)**
-*"Jianghu Brawl is the first game you give to your agent instead of downloading
+*"Xiake Arena is the first game you give to your agent instead of downloading
 yourself. It's an OnchainOS Skill. It composes with every other skill in your
-stack. And it ships today — `npx wuxia-skill`. Thank you."*
+stack. And it ships today — `npx xiake-skill`. Thank you."*
 
 **Caption**
-- `Try it now · npx wuxia-skill`
+- `Try it now · npx xiake-skill`
 - `github.com/<org>/jianghu`
 
 ---
@@ -188,7 +188,7 @@ stack. And it ships today — `npx wuxia-skill`. Thank you."*
 ## Appendix A · Shot list
 
 1. Black screen + blinking cursor (0:00-0:05) — `obs-scene-01.cast`
-2. Typed `/wuxia-fight` (0:05-0:15) — `obs-scene-01.cast`
+2. Typed `/xiake` (0:05-0:15) — `obs-scene-01.cast`
 3. ASCII banner + hero cards (0:15-0:45) — `obs-scene-02.cast`, recorded at 1.5x
 4. tmux 3-pane + mint + PVE (0:45-1:30) — `obs-scene-03.cast`, recorded at 2x
 5. BaseScan cutaway (1:15-1:18) — browser screenshot overlay

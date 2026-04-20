@@ -1,6 +1,6 @@
 // ASCII renderer for the "擂台" (PVP opponent list).
 //
-// Consumed by the `wuxia_list_arena` tool. Returns a markdown-friendly table
+// Consumed by the `xiake_list_arena` tool. Returns a markdown-friendly table
 // so it looks reasonable both in a TTY (with ANSI colors) and when piped to a
 // non-interactive client like an MCP agent log.
 

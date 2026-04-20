@@ -1,4 +1,4 @@
-// Tool: wuxia_set_defense_team
+// Tool: xiake_set_defense_team
 // Writes the player's 3-hero defense lineup on-chain.
 
 import { z } from "zod";
@@ -20,7 +20,7 @@ export const inputSchema = z
 export type Input = z.infer<typeof inputSchema>;
 
 export const toolDef = {
-  name: "wuxia_set_defense_team",
+  name: "xiake_set_defense_team",
   description: "在擂台上设置 3 人防守阵容(当有人挑战你时使用)。",
   inputSchema: {
     type: "object",

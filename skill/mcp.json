@@ -1,13 +1,14 @@
 {
-  "$comment": "Example Claude Code MCP config — copy into ~/.config/claude-code/mcp.json (or the equivalent Cursor/Codex config) and fill in the real values.",
+  "$comment": "Example Claude Code MCP config for Xiake Arena — copy into ~/.config/claude-code/mcp.json (or the equivalent Cursor/Codex config) and fill in the real values.",
   "mcpServers": {
-    "wuxia": {
+    "xiake": {
       "command": "node",
       "args": ["./dist/index.js"],
       "env": {
         "BASE_SEPOLIA_RPC": "https://sepolia.base.org",
-        "WUXIA_HERO_ADDRESS": "0x0000000000000000000000000000000000000000",
-        "WUXIA_ARENA_ADDRESS": "0x0000000000000000000000000000000000000000",
+        "XIAKE_HERO_ADDRESS": "0x0000000000000000000000000000000000000000",
+        "XIAKE_ARENA_ADDRESS": "0x0000000000000000000000000000000000000000",
+        "XIAKE_VAULT_ADDRESS": "0x0000000000000000000000000000000000000000",
 
         "OKX_API_KEY": "replace-me",
         "OKX_SECRET_KEY": "replace-me",
@@ -17,14 +18,15 @@
         "ANTHROPIC_API_KEY": "replace-me"
       }
     },
-    "wuxia-npx": {
+    "xiake-npx": {
       "$comment": "Alternative: use published npm package instead of a local build.",
       "command": "npx",
-      "args": ["-y", "wuxia-skill"],
+      "args": ["-y", "xiake-skill"],
       "env": {
         "BASE_SEPOLIA_RPC": "https://sepolia.base.org",
-        "WUXIA_HERO_ADDRESS": "0x...",
-        "WUXIA_ARENA_ADDRESS": "0x...",
+        "XIAKE_HERO_ADDRESS": "0x...",
+        "XIAKE_ARENA_ADDRESS": "0x...",
+        "XIAKE_VAULT_ADDRESS": "0x...",
         "OKX_API_KEY": "...",
         "OKX_SECRET_KEY": "...",
         "OKX_PASSPHRASE": "...",

@@ -9,6 +9,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Types}         from "./Types.sol";
 import {BattleEngine}  from "./BattleEngine.sol";
 import {HeroNFT}       from "./HeroNFT.sol";
+import {StageRegistry} from "./StageRegistry.sol";
 
 /// @title Arena
 /// @notice Entrypoint for PVE / PVP battles. Runs `BattleEngine.simulate` and
@@ -38,6 +39,7 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
     // ---------------------------------------------------------------------
 
     HeroNFT public immutable heroNft;
+    StageRegistry public immutable stageRegistry;
 
     /// @notice Per-player signing nonce (incremented on successful relay).
     mapping(address => uint64) public playerNonce;
@@ -79,6 +81,15 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
         uint64 timestamp
     );
 
+    /// @notice Full round-by-round event stream. Not indexed to save log gas;
+    ///         clients replay by (attackerTeam, defenderTeam, seed) off-chain
+    ///         and use this event as ground-truth verification.
+    event BattleLog(
+        bytes32 indexed battleId,
+        uint256 seed,
+        Types.BattleEvent[] events
+    );
+
     event PveStarted(
         bytes32 indexed battleId,
         address indexed attacker,
@@ -89,11 +100,13 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
     // Construction
     // ---------------------------------------------------------------------
 
-    constructor(HeroNFT heroNft_)
-        EIP712("JianghuArena", "1")
+    constructor(HeroNFT heroNft_, StageRegistry stageRegistry_)
+        EIP712("XiakeArena", "1")
         Ownable(msg.sender)
     {
+        require(address(stageRegistry_) != address(0), "Arena: zero stage registry");
         heroNft = heroNft_;
+        stageRegistry = stageRegistry_;
     }
 
     // ---------------------------------------------------------------------
@@ -148,6 +161,8 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
         returns (bytes32 battleId)
     {
         _requireOwns(msg.sender, heroIds);
+        _requireAvailable(heroIds);
+        _requireRepMeetsStage(msg.sender, stageId);
 
         Types.Hero[3] memory attackerTeam = heroNft.getTeam(heroIds);
         Types.Hero[3] memory bossTeam = _bossTeam(stageId);
@@ -155,7 +170,18 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
         battleId = _deriveBattleId(msg.sender, address(0));
         emit PveStarted(battleId, msg.sender, stageId);
 
-        _runAndStore(battleId, msg.sender, address(0), attackerTeam, bossTeam);
+        // _runAndStore returns the winner so we can apply wounds on loss.
+        uint8 winner = _runAndStore(battleId, msg.sender, address(0), attackerTeam, bossTeam);
+
+        if (winner == 0) {
+            // Victory — advance chapter progress + totalExp, and fire the
+            // boss-mint reward if this is a擂台 BOSS first-clear. Mirror of
+            // the admin-only `completeStage` logic (kept around for operators).
+            _registerClear(msg.sender, stageId);
+        } else if (winner == 1) {
+            // Defeat — wound the attacker's lineup for the 12h cooldown window.
+            _woundTeam(heroIds, 1);
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -205,12 +231,23 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
         uint256[3] memory defenderIds = _defenseTeam[defender];
         require(_teamSet(attackerIds), "Arena: attacker no team");
         require(_teamSet(defenderIds), "Arena: defender no team");
+        _requireAvailable(attackerIds);
+        // Defender availability is NOT enforced — a player shouldn't be able to
+        // dodge challenges by wounding their own team. Defender losses still
+        // apply wounds so dodge-farming has a cost.
 
         Types.Hero[3] memory attackerTeam = heroNft.getTeam(attackerIds);
         Types.Hero[3] memory defenderTeam = heroNft.getTeam(defenderIds);
 
         battleId = _deriveBattleId(attacker, defender);
-        _runAndStore(battleId, attacker, defender, attackerTeam, defenderTeam);
+        uint8 winner = _runAndStore(battleId, attacker, defender, attackerTeam, defenderTeam);
+
+        // Loser gets wound level 1 (12h cooldown). Draw = no wound.
+        if (winner == 0) {
+            _woundTeam(defenderIds, 1);
+        } else if (winner == 1) {
+            _woundTeam(attackerIds, 1);
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -291,15 +328,19 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
         address defender,
         Types.Hero[3] memory attackerTeam,
         Types.Hero[3] memory defenderTeam
-    ) internal {
+    ) internal returns (uint8 winner) {
         uint256 seed = uint256(keccak256(abi.encode(block.prevrandao, battleId)));
 
-        (uint8 winner, Types.BattleEvent[] memory events) =
+        Types.BattleEvent[] memory events;
+        (winner, events) =
             BattleEngine.simulate(attackerTeam, defenderTeam, seed);
 
         uint8 totalRounds = events.length == 0 ? 0 : events[events.length - 1].round;
 
-        // Persist to storage (full detail) + emit the canonical event (indexer hook).
+        // Persist summary to storage. Full event log goes into the `BattleLog`
+        // event — clients replay from (teams, seed) for exact reconstruction.
+        // This cuts per-battle gas by ~1-2M by removing N × SSTORE on the
+        // events array.
         Types.BattleReport storage r = _reports[battleId];
         r.battleId    = battleId;
         r.attacker    = attacker;
@@ -307,15 +348,56 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
         r.winner      = winner;
         r.totalRounds = totalRounds;
         r.timestamp   = uint64(block.timestamp);
+        r.seed        = seed;
         for (uint256 i = 0; i < 3; i++) {
             r.attackerTeam[i] = attackerTeam[i];
             r.defenderTeam[i] = defenderTeam[i];
         }
-        for (uint256 i = 0; i < events.length; i++) {
-            r.events.push(events[i]);
-        }
 
         emit BattleSettled(battleId, attacker, defender, winner, totalRounds, uint64(block.timestamp));
+        emit BattleLog(battleId, seed, events);
+    }
+
+    // ---------------------------------------------------------------------
+    // Wound / availability
+    // ---------------------------------------------------------------------
+
+    function _requireAvailable(uint256[3] memory ids) internal view {
+        for (uint8 i = 0; i < 3; i++) {
+            require(heroNft.isAvailable(ids[i]), "Arena: hero injured");
+        }
+    }
+
+    /// @dev Enforce the stage's `minReputation` gate. We use `totalExp` as
+    ///      reputation (100 exp per cleared stage, stageId-scaled in
+    ///      `_registerClear`). Stages registered before this check landed on
+    ///      chain (minReputation defaults to 0) remain freely playable.
+    function _requireRepMeetsStage(address player, uint8 stageId) internal view {
+        (, , , uint32 minRep, ) = _stageHeader(stageId);
+        if (minRep == 0) return;
+        require(
+            playerProgress[player].totalExp >= uint256(minRep),
+            "Arena: reputation too low"
+        );
+    }
+
+    /// @dev Read the stage header tuple from the registry. Peeled out of
+    ///      `_requireRepMeetsStage` so the ABI decode is localised and the
+    ///      compiler can keep stack depth under control.
+    function _stageHeader(uint8 stageId)
+        internal
+        view
+        returns (uint8 chapter, bytes32 nameHash, string memory flavor, uint32 minRep, Types.Hero[3] memory bossTeam)
+    {
+        (chapter, nameHash, flavor, minRep, bossTeam) = stageRegistry.getStage(stageId);
+    }
+
+    /// @dev Call HeroNFT.setWound for each id. HeroNFT is gated to Arena —
+    ///      relies on `setArena(arenaAddr)` being wired post-deploy.
+    function _woundTeam(uint256[3] memory ids, uint8 woundLevel) internal {
+        for (uint8 i = 0; i < 3; i++) {
+            heroNft.setWound(ids[i], woundLevel);
+        }
     }
 
     function _powerOf(address player) internal view returns (uint256 power) {
@@ -336,7 +418,7 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
     // Story progress
     // ---------------------------------------------------------------------
 
-    /// @notice擂台 BOSS id 起点 — ids at/above this grant a first-clear mint.
+    /// @notice 擂台 BOSS id 起点 — ids at/above this grant a first-clear mint.
     /// @dev Must match `HeroNFT.BOSS_ARENA_THRESHOLD`.
     uint8 public constant BOSS_ARENA_THRESHOLD = 5;
 
@@ -347,12 +429,43 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
 
     event BossFirstCleared(address indexed player, uint8 bossId);
 
-    /// @notice Record a stage clear for `player`. Owner / authority only.
+    /// @notice Minimum chapter a player must have cleared before they can
+    ///         unlock extra skills on their heroes (PRD §习得技能).
+    uint8 public constant SKILL_LEARN_MILESTONE = 3;
+
+    event SkillLearned(address indexed player, uint256 indexed tokenId, uint8 skillId);
+
+    /// @notice Teach an additional skill to a hero owned by the caller. The
+    ///         hero must already belong to msg.sender and the player must have
+    ///         cleared at least SKILL_LEARN_MILESTONE story chapters. The skill
+    ///         is appended to HeroNFT's `_unlockedSkills` list so the CLI can
+    ///         equip it into one of the three active slots via `equip`.
+    function learnSkill(uint256 tokenId, uint8 skillId) external {
+        require(heroNft.ownerOf(tokenId) == msg.sender, "Arena: not hero owner");
+        require(
+            playerProgress[msg.sender].currentChapter >= SKILL_LEARN_MILESTONE,
+            "Arena: milestone not met"
+        );
+        heroNft.unlockSkill(tokenId, skillId);
+        emit SkillLearned(msg.sender, tokenId, skillId);
+    }
+
+    /// @notice Record a stage clear for `player`. Owner / authority only —
+    ///         retained as an escape hatch for admin correction. The normal
+    ///         path is automatic: `startPve` on winner==0 calls `_registerClear`
+    ///         itself so players get story progress without an oracle.
     /// @dev Packs bossId + block timestamp into a single uint64:
     ///      (bossId << 56) | (timestamp & 0x00FFFFFFFFFFFFFF).
-    ///      Not payable — Paymaster-safe.
     function completeStage(address player, uint8 bossId) external onlyGame {
         require(player != address(0), "Arena: zero player");
+        _registerClear(player, bossId);
+    }
+
+    /// @dev Internal clear-ledger update. Called both by the admin
+    ///      `completeStage` hook and by `startPve` on victory. Idempotent
+    ///      per (player, bossId) for the BOSS-mint reward; stage clears
+    ///      themselves can legitimately repeat (grinding a stage for XP).
+    function _registerClear(address player, uint8 bossId) internal {
         Types.StoryProgress storage p = playerProgress[player];
 
         uint64 ts = uint64(block.timestamp) & 0x00FFFFFFFFFFFFFF;
@@ -384,36 +497,12 @@ contract Arena is EIP712, ReentrancyGuard, Ownable {
     }
 
     // ---------------------------------------------------------------------
-    // PVE boss table
+    // PVE boss table — delegated to on-chain registry so new stages can be
+    // added without redeploying Arena. See docs/CONTENT_UPDATES.md §1.1.
     // ---------------------------------------------------------------------
 
-    /// @dev Hard-coded single-stage boss team (Wudang flavor). Hackathon-simple.
-    function _bossTeam(uint8 stageId) internal pure returns (Types.Hero[3] memory team) {
-        require(stageId == 1, "Arena: unknown stage");
-
-        // Stage 1 — 武当藏经阁:高 DEF 低输出三人组
-        team[0] = _bossHero(1001, Types.Sect.Shaolin, 200, 80, 100, 60, 500,  0, 1, 2);
-        team[1] = _bossHero(1002, Types.Sect.Tangmen, 130, 95, 50,  95, 2000, 3, 4, 5);
-        team[2] = _bossHero(1003, Types.Sect.Emei,    160, 75, 70,  85, 1000, 6, 7, 8);
-    }
-
-    function _bossHero(
-        uint256 tokenId,
-        Types.Sect sect,
-        uint16 hp, uint16 atk, uint16 def, uint16 spd, uint16 crit,
-        uint8 s1, uint8 s2, uint8 s3
-    ) internal pure returns (Types.Hero memory h) {
-        uint8[] memory skills = new uint8[](3);
-        skills[0] = s1; skills[1] = s2; skills[2] = s3;
-        h = Types.Hero({
-            tokenId: tokenId,
-            sect:    sect,
-            hp:      hp,
-            atk:     atk,
-            def:     def,
-            spd:     spd,
-            crit:    crit,
-            skillIds: skills
-        });
+    function _bossTeam(uint8 stageId) internal view returns (Types.Hero[3] memory team) {
+        require(stageRegistry.exists(stageId), "Arena: unknown stage");
+        team = stageRegistry.getBossTeam(stageId);
     }
 }

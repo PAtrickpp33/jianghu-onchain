@@ -1,10 +1,10 @@
 {
-  "name": "wuxia-skill",
-  "version": "0.2.0",
-  "description": "Jianghu Wuxia on-chain 3v3 battle game as a Claude Code / Cursor / Codex skill. Mint heroes, clear PvE chapters, run AI-vs-AI arena matches — from inside your terminal agent.",
+  "name": "xiake-skill",
+  "version": "0.3.0",
+  "description": "Xiake Arena (侠客擂台) — on-chain 3v3 wuxia brawler as a Claude Code / Cursor / Codex skill. Mint heroes, clear PvE chapters, run AI-vs-AI arena matches from inside your terminal agent.",
   "type": "module",
   "bin": {
-    "wuxia-skill": "dist/cli.js"
+    "xiake-skill": "dist/cli.js"
   },
   "main": "dist/cli.js",
   "files": [
@@ -29,6 +29,7 @@
     "cursor",
     "codex",
     "onchain-game",
+    "xiake",
     "wuxia",
     "okx",
     "onchainos",

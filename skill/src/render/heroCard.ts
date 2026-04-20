@@ -17,11 +17,18 @@ import { Sect, SECT_NAMES, type Hero } from "../types.js";
 /** Inner-width (excluding the side │ borders) of a hero card. */
 const CARD_INNER_WIDTH = 44;
 
-/** Emoji prefix for each sect, used in the title line. */
+/** Emoji prefix for each sect, used in the title line. Local override of the
+ *  shared SECT_ICON map because the card uses 🌸 for Emei (more serene)
+ *  instead of the menu's ⛩️.
+ */
 const SECT_ICON: Record<Sect, string> = {
   [Sect.Shaolin]: "🥋",
   [Sect.Tangmen]: "🗡️",
-  [Sect.Emei]: "🌸",
+  [Sect.Emei]:    "🌸",
+  [Sect.Wudang]:  "☯️",
+  [Sect.Beggars]: "🥖",
+  [Sect.Huashan]: "⚔️",
+  [Sect.Ming]:    "🔥",
 };
 
 /**
@@ -33,7 +40,7 @@ export interface HeroCardOptions {
   skillNameById?: Record<number, string>;
   /**
    * Current HP to display. Falls back to the hero's max HP (for "at rest"
-   * cards like in `wuxia_list_heroes`).
+   * cards like in `xiake_list_heroes`).
    */
   currentHp?: number;
   /** Display name override (nickname, boss title, …). Defaults to `hero.name`. */

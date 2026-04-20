@@ -1,4 +1,4 @@
-// Renders the result card after mintGenesis succeeds (consumed by wuxia_mint_hero).
+// Renders the result card after mintGenesis succeeds (consumed by xiake_mint_hero).
 
 import type { Hero } from "../types.js";
 import { bold, faint, link, status } from "./ansi.js";
@@ -27,7 +27,7 @@ export function renderMintResult(input: MintResultInput): string {
 
   lines.push(faint(`tx: ${txUrl ? link(shortTx) + `  (${txUrl})` : shortTx}`));
   lines.push("");
-  lines.push(faint("下一步: `wuxia_set_defense_team` 设置防守阵容,或 `wuxia_start_pve` 打第一关。"));
+  lines.push(faint("下一步: `xiake_set_defense_team` 设置防守阵容,或 `xiake_start_pve` 打第一关。"));
 
   return lines.join("\n");
 }

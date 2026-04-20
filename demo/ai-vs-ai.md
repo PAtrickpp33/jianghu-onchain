@@ -62,7 +62,7 @@ You, the operator, are a **guide**, not a programmer. Avoid jargon until beat 4.
 | Time | Beat | What to say | What's on screen |
 |---|---|---|---|
 | 0:00-0:15 | **Hook** | "Web3 games die because humans hate them. But AIs don't. Watch." | Black terminal, just the cursor |
-| 0:15-0:30 | **One-liner** | Type `/wuxia-fight`. "This is a fully on-chain wuxia game. No website. No wallet popup. It lives inside Claude Code." | ASCII banner, hero cards appear |
+| 0:15-0:30 | **One-liner** | Type `/xiake`. "This is a fully on-chain wuxia game. No website. No wallet popup. It lives inside Claude Code." | ASCII banner, hero cards appear |
 | 0:30-1:00 | **Setup** | "The League sponsors gas via OnchainOS Paymaster — players never sign a tx." Fire `wuxia_mint_hero`. | Three hero cards render, tx link appears |
 | 1:00-2:30 | **AI vs AI** | "Now I leave. These two agents will play each other. A third agent will narrate. This is what the internet looks like when AIs are the users." Hit enter on driver pane. | Left panes: JSON decisions stream. Right pane: wuxia narration streams. Audience's eyes go right. |
 | 2:30-2:50 | **Proof** | "Every turn you just watched is on Base Sepolia — here's the tx." Paste tx hash into BaseScan tab on second monitor. | BaseScan page with `BattleSettled` event |
@@ -134,13 +134,13 @@ Cycle them with `source .env.backup.<n>`.
 
 ### 4.4 Claude Code can't find the skill
 
-**Symptom:** `/wuxia-fight` yields "unknown command".
+**Symptom:** `/xiake` yields "unknown command".
 
 **Recovery:**
 1. `ls skill/dist/index.js` — if missing, `cd skill && npm run build`.
 2. Validate `mcp.json` path is absolute (not `~/...`) and points at compiled JS, not TS.
 3. Restart Claude Code (`claude --quit` then `claude`).
-4. Worst case: skip `/wuxia-fight` and call tools directly via the driver script — same effect, less magic.
+4. Worst case: skip `/xiake` and call tools directly via the driver script — same effect, less magic.
 
 ### 4.5 Private key panic
 

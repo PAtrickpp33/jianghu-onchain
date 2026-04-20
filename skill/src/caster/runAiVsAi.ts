@@ -1,4 +1,4 @@
-// Thin wrapper around `aiVsAi.ts`'s orchestrator for the `wuxia_ai_vs_ai` tool.
+// Thin wrapper around `aiVsAi.ts`'s orchestrator for the `xiake_ai_vs_ai` tool.
 //
 // Responsibilities:
 //   1. Map the tool's compact input ({agentA, agentB, rounds, withCaster})
@@ -50,16 +50,16 @@ export interface SimpleRunInput {
 }
 
 /**
- * Entry point called by the `wuxia_ai_vs_ai` tool handler. Returns the full
+ * Entry point called by the `xiake_ai_vs_ai` tool handler. Returns the full
  * battle Markdown transcript (suitable for direct MCP response).
  */
 export async function runAiVsAi(input: SimpleRunInput): Promise<string> {
-  const demoA = (process.env.WUXIA_DEMO_PLAYER_A ?? DEMO_DEFAULT_A) as `0x${string}`;
-  const demoB = (process.env.WUXIA_DEMO_PLAYER_B ?? DEMO_DEFAULT_B) as `0x${string}`;
+  const demoA = (process.env.XIAKE_DEMO_PLAYER_A ?? DEMO_DEFAULT_A) as `0x${string}`;
+  const demoB = (process.env.XIAKE_DEMO_PLAYER_B ?? DEMO_DEFAULT_B) as `0x${string}`;
 
   const useChain =
-    Boolean(process.env.WUXIA_ARENA_ADDRESS) &&
-    Boolean(process.env.WUXIA_HERO_ADDRESS) &&
+    Boolean(process.env.XIAKE_ARENA_ADDRESS) &&
+    Boolean(process.env.XIAKE_HERO_ADDRESS) &&
     input.agentA !== "mock" &&
     input.agentB !== "mock";
 
@@ -233,7 +233,7 @@ async function loadTeamFromChain(address: `0x${string}`): Promise<Hero[]> {
   const heroes = await fetchHeroes([a, b, c]);
   if (heroes.length !== 3) {
     throw new Error(
-      `Player ${address} has not set a defense team yet. Call wuxia_set_defense_team first.`,
+      `Player ${address} has not set a defense team yet. Call xiake_set_defense_team first.`,
     );
   }
   return heroes;

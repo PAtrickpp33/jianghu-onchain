@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Jianghu Brawl · One-shot setup
+# Xiake Arena · One-shot setup
 # ----------------------------------------------------------------------------
 # What this does, in order:
 #   1. Verify toolchain (foundry, node, npm, jq).
@@ -212,7 +212,7 @@ if [[ "${SKIP_DEPLOY}" -eq 0 ]]; then
 fi
 
 # ── 5. Skill build ───────────────────────────────────────────────────────────
-log "building skill (wuxia-skill)..."
+log "building skill (xiake-skill)..."
 pushd "${SKILL_DIR}" >/dev/null
 npm install --no-audit --no-fund
 npm run build
@@ -228,7 +228,7 @@ printf "  ${C_DIM}%%APPDATA%%\\claude-code\\mcp.json${C_RESET} (Windows)\n\n"
 cat <<JSON
 {
   "mcpServers": {
-    "wuxia": {
+    "xiake": {
       "command": "node",
       "args": ["${SKILL_DIR}/dist/index.js"],
       "env": {
@@ -247,4 +247,4 @@ cat <<JSON
 }
 JSON
 
-printf "\n${C_DIM}Then restart Claude Code and run: /wuxia-fight${C_RESET}\n\n"
+printf "\n${C_DIM}Then restart Claude Code and run: /xiake${C_RESET}\n\n"
